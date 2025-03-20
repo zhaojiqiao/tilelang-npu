@@ -1,4 +1,4 @@
-# Copyright (c) Microsoft Corporation.
+# Copyright (c) Tile-AI Corporation.
 # Licensed under the MIT License.
 from typing import Optional
 from .utils import is_cuda_target, is_hip_target, is_cpu_target
@@ -27,8 +27,10 @@ class LibraryGenerator(object):
         self.lib_code = lib_code
 
     # Assume currently we only support CUDA compilation
-    def load_lib(self):
-        return ctypes.CDLL(self.libpath)
+    def load_lib(self, lib_path: Optional[str] = None):
+        if lib_path is None:
+            lib_path = self.libpath
+        return ctypes.CDLL(lib_path)
 
     def compile_lib(self, timeout: float = None, with_tl: bool = True):
         target = self.target
