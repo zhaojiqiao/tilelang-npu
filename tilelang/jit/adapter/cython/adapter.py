@@ -92,6 +92,7 @@ with open(cython_wrapper_path, "r") as f:
     library_path = cache_dir / "cython_wrapper.so"
     md5_path = cache_dir / "md5.txt"
     code_hash = hashlib.sha256(cython_wrapper_code.encode()).hexdigest()
+    cache_path = cache_dir / f"{code_hash}.so"
 
     # Check if cached version exists and is valid
     need_compile = True
@@ -130,6 +131,7 @@ with open(cython_wrapper_path, "r") as f:
                 temp_path.unlink()
             raise Exception(f"Failed to compile cython jit adapter: {e}") from e
         finally:
+            lock_file = cache_path.with_suffix('.lock')
             if lock_file.exists():
                 lock_file.unlink()
 
