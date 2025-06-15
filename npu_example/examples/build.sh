@@ -1,0 +1,18 @@
+bisheng --cce-soc-version=Ascend910B3 --cce-soc-core-type=CubeCore \
+    -O2 -std=c++17 -xcce \
+    -mllvm -cce-aicore-stack-size=0x8000 \
+    -mllvm -cce-aicore-function-stack-size=0x8000 \
+    -mllvm -cce-aicore-record-overflow=true \
+    -mllvm -cce-aicore-addr-transform \
+    -mllvm -cce-aicore-dcci-insert-for-scalar=false \
+    -DL2_CACHE_HINT \
+    -I${ASCEND_HOME_PATH}/compiler/tikcpp \
+    -I${ASCEND_HOME_PATH}/compiler/tikcpp/tikcfw \
+    -I${ASCEND_HOME_PATH}/compiler/tikcpp/tikcfw/impl \
+    -I${ASCEND_HOME_PATH}/compiler/tikcpp/tikcfw/interface \
+    -I${ASCEND_HOME_PATH}/include \
+    -I${ASCEND_HOME_PATH}/include/experiment/msprof \
+    -I../../3rdparty/catlass/include \
+    -I./ \
+    -L$ASCEND_HOME_PATH/lib64 -lruntime -lstdc++ -lascendcl -lm -ltiling_api -lplatform -lc_sec -ldl \
+    -fPIC --shared m16384.cpp -o kernel_lib.so

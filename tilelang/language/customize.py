@@ -3,7 +3,7 @@
 """The language interface for tl programs."""
 
 import tilelang.language as T
-from tvm.tir import PrimExpr, Buffer
+from tvm.tir import PrimExpr, Buffer, BufferRegion, BufferLoad, Var
 from typing import List, Union
 
 
@@ -107,3 +107,211 @@ def view(src: Buffer,
     if dtype is None:
         dtype = src.dtype
     return T.Buffer(shape, dtype, src.data)
+
+
+def _dtype(buf):
+    type_map = {"float16": "half", "float32": "float"}
+    if isinstance(buf, BufferRegion):
+        buf = buf.buffer
+    return type_map[buf.dtype]
+
+
+def npu_gemm(A, B, C, transpose_A=False, transpose_B=False, init=False):
+
+    def legalize_arguments(arg: Union[Buffer, Var]):
+        """Convert let-bound variables to their corresponding buffers.
+
+        Args:
+            arg (Union[tir.Buffer, tir.Var]): Input argument to legalize
+
+        Returns:
+            Union[tir.Buffer, tir.Var]: The legalized argument
+        """
+        if isinstance(arg, Var) and T.has_let_value(arg):
+            return T.get_let_value(arg).buffer
+        return arg
+
+    A = legalize_arguments(A)
+    B = legalize_arguments(B)
+    C = legalize_arguments(C)
+
+    def retrieve_shape(object: Union[Buffer, BufferRegion]) -> List[int]:
+        if isinstance(object, Buffer):
+            return object.shape
+        elif isinstance(object, BufferRegion):
+            region = object.region
+            shape = []
+            for r in region:
+                shape.append(r.extent)
+            return shape
+        else:
+            raise ValueError(f"Unsupported argument type: {type(object)} for buffer {object}")
+
+    A_shape = retrieve_shape(A)
+    B_shape = retrieve_shape(B)
+    C_shape = retrieve_shape(C)
+
+    assert len(C_shape) == 2, "current only support C as a 2D tensor"
+    assert len(A_shape) >= 2, "current only support A as a 2D or higher-order tensor"
+    assert len(B_shape) >= 2, "current only support B as a 2D or higher-order tensor"
+    if len(A_shape) > 2:
+        for i in range(len(A_shape) - 2):
+            assert A_shape[i] == 1, \
+                "current only support A as a 2D or higher-order tensor with the last two dimensions being the matrix dimensions"
+    if len(B_shape) > 2:
+        for i in range(len(B_shape) - 2):
+            assert B_shape[i] == 1, \
+                "current only support B as a 2D or higher-order tensor with the last two dimensions being the matrix dimensions"
+
+    M, N = C_shape
+    K = A_shape[-2] if transpose_A else A_shape[-1]
+    K_B = B_shape[-1] if transpose_B else B_shape[-2]
+    assert K == K_B, f"T.gemm K shape check failed: K_A = {K}, K_B = {K_B}"
+
+    def retrieve_ptr(object: Union[Buffer, BufferRegion], access_type: str = "r") -> PrimExpr:
+        if isinstance(object, Buffer):
+            return object.access_ptr(access_type)
+        elif isinstance(object, BufferRegion):
+            buffer, region = object.buffer, object.region
+            indices = []
+            for r in region:
+                indices.append(r.min)
+            strides = []
+            stride = 1
+            for s in reversed(buffer.shape):
+                strides.insert(0, stride)
+                stride *= s
+            offset = 0
+            for i in range(len(indices)):
+                offset += indices[i] * strides[i]
+            return buffer.access_ptr(access_mask=access_type, offset=offset)
+        else:
+            raise ValueError(f"Unsupported argument type: {type(object)} for buffer {object}")
+
+    Aptr = retrieve_ptr(A, "r")
+    Bptr = retrieve_ptr(B, "r")
+    Cptr = retrieve_ptr(C, "rw")
+
+    # assert _dtype(A) == _dtype(B), f"gemm A and B dtype mismatch: {_dtype(A)} vs {_dtype(B)}"
+    return T.call_extern(
+        "handle", f"tl::ascend::mma<{_dtype(A)}, {_dtype(C)}, {M}, {N}, {K}, {str(init).lower()}>",
+        Aptr, Bptr, Cptr, transpose_A, transpose_B, M, N, K, init)
+
+
+def npu_copy(
+    src,
+    dst,
+):
+
+    def _to_load(data):
+        if isinstance(data, Buffer):
+            return BufferLoad(data, [0 for _ in data.shape])
+        elif isinstance(data, BufferRegion):
+            return BufferLoad(data.buffer, [x.min for x in data.region])
+        else:
+            return data
+
+    src = _to_load(src)
+    dst = _to_load(dst)
+    src_buf = src.buffer
+    dst_buf = dst.buffer
+
+    inst = ""
+    src_M = src_buf.shape[-2]
+    src_N = src_buf.shape[-1]
+    dst_M = dst_buf.shape[-2]
+    dst_N = dst_buf.shape[-1]
+    ext = ""
+    if src_buf.scope() == "global" and dst_buf.scope() == "shared.dyn":
+        inst = "copy_gm_to_l1"
+    elif src_buf.scope() == "shared.dyn" and dst_buf.scope() == "wmma.matrix_a":
+        inst = "copy_l1_to_l0a"
+    elif src_buf.scope() == "shared.dyn" and dst_buf.scope() == "wmma.matrix_b":
+        inst = "copy_l1_to_l0b"
+    elif src_buf.scope() == "wmma.accumulator" and dst_buf.scope() == "global":
+        inst = "copy_l0c_to_gm"
+        ext = f"{_dtype(dst_buf)}, "
+    elif src_buf.scope() == "global" and dst_buf.scope() == "shared":
+        inst = "copy_gm_to_ub"
+    elif src_buf.scope() == "shared" and dst_buf.scope() == "global":
+        inst = "copy_ub_to_gm"
+
+    return T.call_extern(
+        "handle", f"tl::ascend::{inst}<{_dtype(src_buf)}, {ext}{src_M}, {src_N}, {dst_M}, {dst_N}>",
+        src, dst)
+
+
+def npu_add(A, B, C):
+
+    def legalize_arguments(arg: Union[Buffer, Var]):
+        """Convert let-bound variables to their corresponding buffers.
+
+        Args:
+            arg (Union[tir.Buffer, tir.Var]): Input argument to legalize
+
+        Returns:
+            Union[tir.Buffer, tir.Var]: The legalized argument
+        """
+        if isinstance(arg, Var) and T.has_let_value(arg):
+            return T.get_let_value(arg).buffer
+        return arg
+
+    A = legalize_arguments(A)
+    B = legalize_arguments(B)
+    C = legalize_arguments(C)
+
+    def retrieve_shape(object: Union[Buffer, BufferRegion]) -> List[int]:
+        if isinstance(object, Buffer):
+            return object.shape
+        elif isinstance(object, BufferRegion):
+            region = object.region
+            shape = []
+            for r in region:
+                shape.append(r.extent)
+            return shape
+        else:
+            raise ValueError(f"Unsupported argument type: {type(object)} for buffer {object}")
+
+    A_shape = retrieve_shape(A)
+    B_shape = retrieve_shape(B)
+    C_shape = retrieve_shape(C)
+
+    assert len(C_shape) == 2, "current only support C as a 2D tensor"
+    assert len(A_shape) >= 2, "current only support A as a 2D or higher-order tensor"
+    assert len(B_shape) >= 2, "current only support B as a 2D or higher-order tensor"
+    if len(A_shape) > 2:
+        for i in range(len(A_shape) - 2):
+            assert A_shape[i] == 1, \
+                "current only support A as a 2D or higher-order tensor with the last two dimensions being the matrix dimensions"
+    if len(B_shape) > 2:
+        for i in range(len(B_shape) - 2):
+            assert B_shape[i] == 1, \
+                "current only support B as a 2D or higher-order tensor with the last two dimensions being the matrix dimensions"
+
+    M, N = C_shape
+
+    def retrieve_ptr(object: Union[Buffer, BufferRegion], access_type: str = "r") -> PrimExpr:
+        if isinstance(object, Buffer):
+            return object.access_ptr(access_type)
+        elif isinstance(object, BufferRegion):
+            buffer, region = object.buffer, object.region
+            indices = []
+            for r in region:
+                indices.append(r.min)
+            strides = []
+            stride = 1
+            for s in reversed(buffer.shape):
+                strides.insert(0, stride)
+                stride *= s
+            offset = 0
+            for i in range(len(indices)):
+                offset += indices[i] * strides[i]
+            return buffer.access_ptr(access_mask=access_type, offset=offset)
+        else:
+            raise ValueError(f"Unsupported argument type: {type(object)} for buffer {object}")
+
+    Aptr = retrieve_ptr(A, "r")
+    Bptr = retrieve_ptr(B, "r")
+    Cptr = retrieve_ptr(C, "w")
+
+    return T.call_extern("handle", f"tl::ascend::tile_add<{_dtype(A)}, {M * N}>", Aptr, Bptr, Cptr)

@@ -34,14 +34,19 @@ from .kernel import (
     get_block_binding,  # noqa: F401
     get_block_bindings,  # noqa: F401
 )
-from .warpgroup import ws  # noqa: F401
+from .warpgroup import ws, rs, set_flag, wait_flag, Scope  # noqa: F401
 from .allocate import (
     alloc_local,  # noqa: F401
     alloc_shared,  # noqa: F401
     alloc_fragment,  # noqa: F401
     alloc_var,  # noqa: F401
+    alloc_L0A,  # noqa: F401
+    alloc_L0B,  # noqa: F401
+    alloc_L0C,  # noqa: F401
+    alloc_L1,  # noqa: F401
+    alloc_ub,  # noqa: F401
 )
-from .copy import copy, c2d_im2col  # noqa: F401
+from .copy import copy, c2d_im2col, npu_copy_v2 as copy  # noqa: F401, F811
 from .gemm import GemmWarpPolicy, gemm  # noqa: F401
 from .fill import fill, clear  # noqa: F401
 from .reduce import (
@@ -62,6 +67,9 @@ from .customize import (
     clamp,  # noqa: F401
     reshape,  # noqa: F401
     view,  # noqa: F401
+    npu_gemm as gemm,  # noqa: F401, F811
+    # npu_copy as copy,  # noqa: F401, F811
+    npu_add as tile_add,  # noqa: F401, F811
 )
 from .logical import any_of, all_of  # noqa: F401
 from .builtin import *  # noqa: F401
@@ -155,3 +163,48 @@ def annotate_padding(padding_map: Dict):
 def import_source(source: Optional[str] = None):
     # source is the source code to be imported
     return block_attr({"pragma_import_c": source}) if source is not None else None
+
+
+def init_flag(fmap):
+    inst = ""
+    for src, d in fmap.items():
+        for dst, stages in d.items():
+            for stage in stages:
+                inst += f"AscendC::SetFlag<AscendC::HardEvent::{src}_{dst}>({stage});\n"
+
+    return attr(None, "init_flag", inst)
+
+
+def clear_flag(fmap):
+    inst = ""
+    for src, d in fmap.items():
+        for dst, stages in d.items():
+            for stage in stages:
+                inst += f"AscendC::WaitFlag<AscendC::HardEvent::{src}_{dst}>({stage});\n"
+
+    @macro
+    def _get_inst():
+        with attr(None, "clear_flag", inst):
+            call_extern("handle", "...")
+
+    # return attr(call_extern("handle", "..."), "clear_flag", inst)
+    return _get_inst()
+
+
+def npu_use_swizzle(m, n, k, block_m, block_n, off=1, dir=0):
+    # If order is row, use rasterization2DRow, otherwise use rasterization2DColumn
+    # The panel size is the number of threads in a warp
+    # Use to improve the L2 Cache Locality
+    # device_func = ("rasterization2DRow" if order == "row" else "rasterization2DColumn")
+    return attr(
+        None, "threadblock_swizzle_pattern",
+        f"tl::ascend::thread_block_swizzle<{m}, {n}, {k}, {block_m}, {block_n}, {off}, {dir}>")
+
+
+del use_swizzle
+
+
+# let npu_use_swizzle is aliased to use_swizzle
+def use_swizzle(m, n, k, block_m, block_n, off=1, dir=0):
+    """Alias for npu_use_swizzle with proper signature for function hints."""
+    return npu_use_swizzle(m, n, k, block_m, block_n, off, dir)

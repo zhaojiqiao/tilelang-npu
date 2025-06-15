@@ -1,0 +1,125 @@
+// Copyright (c) Tile-AI Corporation.
+// Licensed under the MIT License.
+
+/*!
+ * \file tl/op/ascend.cc
+ *
+ * Define ascend-related operators.
+ */
+
+#include "ascend.h"
+
+#include <tvm/tir/builtin.h>
+#include <tvm/tir/op.h>
+#include <tvm/tir/op_attr_types.h>
+
+#include "builtin.h"
+
+namespace tvm {
+namespace tl {
+
+using namespace tir;
+
+AscendCopy::AscendCopy(Array<PrimExpr> args, BufferMap vmap) : args_(args) {
+  Array<Range> rgs[2];
+  Buffer bf[2];
+  for (int i = 0; i < 2; i++) {
+    auto expr = args[i];
+    auto call = expr.as<CallNode>();
+    ICHECK(call);
+    auto region = RegionOp(call->args, vmap);
+    rgs[i] = region.GetRanges();
+    bf[i] = region.GetBuffer();
+  }
+  std::tie(this->src, this->dst) = std::tie(bf[0], bf[1]);
+  std::tie(this->src_range, this->dst_range) = std::tie(rgs[0], rgs[1]);
+}
+
+Stmt AscendCopy::Lower(const LowerArgs &T, arith::Analyzer *analyzer) const {
+  auto get_dtype = [](const Buffer &buf) -> std::string {
+    auto dtype = buf->dtype;
+    if (dtype.is_float16()) {
+      return "half";
+    } else if (dtype.is_float() && dtype.bits() == 32) {
+      return "float";
+    }
+    LOG(FATAL) << "Unsupported data type: " << dtype;
+    return "";
+  };
+
+  std::stringstream ss;
+  ss << "tl::ascend::";
+  bool flag = false;
+  if (src.scope() == "global" && dst.scope() == "shared.dyn") {
+    ss << "copy_gm_to_l1";
+  } else if (src.scope() == "shared.dyn" && dst.scope() == "wmma.matrix_a") {
+    ss << "copy_l1_to_l0a";
+  } else if (src.scope() == "shared.dyn" && dst.scope() == "wmma.matrix_b") {
+    ss << "copy_l1_to_l0b";
+  } else if (src.scope() == "wmma.accumulator" && dst.scope() == "global") {
+    ss << "copy_l0c_to_gm";
+    flag = true;
+  } else if (src.scope() == "global" && dst.scope() == "shared") {
+    ss << "copy_gm_to_ub";
+  } else if (src.scope() == "shared" && dst.scope() == "global") {
+    ss << "copy_ub_to_gm";
+  } else {
+    LOG(FATAL) << "Unsupported scope: src = " << src.scope()
+               << ", dst = " << dst.scope();
+  }
+
+  ss << "<" << get_dtype(src) << ",";
+  if (flag) {
+    ss << get_dtype(dst) << ", ";
+  }
+  int src_ndim = src->shape.size(), dst_ndim = dst->shape.size();
+  ss << src->shape[src_ndim - 2] << "," << src->shape[src_ndim - 1] << ", "
+     << dst->shape[dst_ndim - 2] << "," << dst->shape[dst_ndim - 1] << ">";
+
+  Array<PrimExpr> src_indices, dst_indices;
+
+  for (size_t i = 0; i < src_range.size(); i++) {
+    src_indices.push_back(src_range[i]->min);
+  }
+
+  for (size_t i = 0; i < dst_range.size(); i++) {
+    dst_indices.push_back(dst_range[i]->min);
+  }
+
+  auto src_new_indices = T.layout_map.count(src)
+                             ? T.layout_map[src]->Forward(src_indices)
+                             : src_indices;
+  auto dst_new_indices = T.layout_map.count(dst)
+                             ? T.layout_map[dst]->Forward(dst_indices)
+                             : dst_indices;
+
+  auto src_new_buffer = T.buffer_remap.count(src) ? T.buffer_remap[src] : src;
+  auto dst_new_buffer = T.buffer_remap.count(dst) ? T.buffer_remap[dst] : dst;
+  auto src_ptr = src_new_buffer.access_ptr(
+      1, DataType::Handle(), 1,
+      src_new_buffer.OffsetOf(src_new_indices).back());
+  auto dst_ptr = dst_new_buffer.access_ptr(
+      2, DataType::Handle(), 1,
+      dst_new_buffer.OffsetOf(dst_new_indices).back());
+  Array<PrimExpr> new_args;
+  new_args.push_back(StringImm(ss.str()));
+
+  new_args.push_back(src_ptr);
+  new_args.push_back(dst_ptr);
+
+  auto new_call = Call(DataType::Handle(), builtin::call_extern(), new_args);
+  return Evaluate(new_call);
+}
+
+LayoutMap AscendCopy::InferLayout(const LayoutInferArgs &T, InferLevel level) {
+  LayoutMap results;
+  // TODO: add logic to infer layout for AscendCopy
+  return results;
+}
+
+TIR_REGISTER_TL_OP(AscendCopy, ascend_copy)
+    .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind",
+                               Integer(CallEffectKind::kOpaque));
+} // namespace tl
+} // namespace tvm

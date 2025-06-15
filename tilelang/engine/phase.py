@@ -56,6 +56,7 @@ def LowerAndLegalize(mod: IRModule, target: Target) -> IRModule:
     mod = tilelang.transform.FrontendLegalize()(mod)
     # Simplify the IR expressions
     mod = tir.transform.Simplify()(mod)
+
     # Infer memory layouts for fragments and shared memory
     mod = tilelang.transform.LayoutInference()(mod)
     # Lower high-level tile operations to low-level operations
@@ -108,7 +109,6 @@ def OptimizeForTarget(mod: IRModule, target: Target) -> IRModule:
     mod = tilelang.transform.ConfigIndexBitwidth()(mod)
     mod = tilelang.transform.FlattenBuffer()(mod)
     mod = tir.transform.Simplify()(mod)
-
     mod = tilelang.transform.VectorizeLoop(enable_vectorize=allow_vectorize(pass_ctx=pass_ctx))(mod)
 
     mod = tir.transform.StorageRewrite()(mod)
@@ -119,6 +119,9 @@ def OptimizeForTarget(mod: IRModule, target: Target) -> IRModule:
     mod = tir.transform.RewriteUnsafeSelect()(mod)
     mod = tir.transform.HoistIfThenElse()(mod)
 
+    if target.keys[0] == "cpu":
+        return mod
+    exit(1)
     mod = tir.transform.VerifyMemory()(mod)
     mod = tir.transform.AnnotateEntryFunc()(mod)
     # TODO(lei): This is a hack to make sure the
@@ -158,5 +161,4 @@ def OptimizeForTarget(mod: IRModule, target: Target) -> IRModule:
 
     mod = tilelang.transform.MakePackedAPI()(mod)
     mod = tir.transform.LowerDeviceKernelLaunch()(mod)
-
     return mod
