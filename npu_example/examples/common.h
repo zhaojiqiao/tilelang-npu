@@ -1,5 +1,6 @@
 #include "catlass/arch/arch.hpp"
 #include "catlass/catlass.hpp"
+
 #include "catlass/detail/tag_to_layout.hpp"
 #include "catlass/epilogue/tile/copy_gm_to_ub.hpp"
 #include "catlass/epilogue/tile/copy_ub_to_gm.hpp"
@@ -19,14 +20,13 @@ using namespace Catlass::Epilogue::Tile;
 using namespace AscendC;
 
 using ArchTag = Arch::AtlasA2;
-using LayoutL1 = layout::zN;
 using LayoutGM = layout::RowMajor;
 
 using LayoutL0A = layout::zZ;
 using LayoutL0B = layout::nZ;
 
-template <typename T, uint32_t srcM, uint32_t srcN, uint32_t dstM,
-          uint32_t dstN>
+template <typename T, typename LayoutL1, uint32_t srcM, uint32_t srcN,
+          uint32_t dstM, uint32_t dstN>
 CATLASS_DEVICE void copy_gm_to_l1(LocalTensor<T> dstTensor,
                                   GlobalTensor<T> srcTensor) {
   auto layout = MakeLayoutFromTag(LayoutGM{srcM, srcN});
@@ -43,8 +43,8 @@ CATLASS_DEVICE void copy_gm_to_l1(LocalTensor<T> dstTensor,
   tileCopier(dst, src);
 }
 
-template <typename T, uint32_t srcM, uint32_t srcN, uint32_t dstM,
-          uint32_t dstN>
+template <typename T, typename LayoutL1, uint32_t srcM, uint32_t srcN,
+          uint32_t dstM, uint32_t dstN>
 CATLASS_DEVICE void copy_l1_to_l0a(LocalTensor<T> dstTensor,
                                    LocalTensor<T> srcTensor) {
   using LayoutL1_ = Catlass::detail::TagToLayout_t<T, LayoutL1>;
@@ -63,8 +63,8 @@ CATLASS_DEVICE void copy_l1_to_l0a(LocalTensor<T> dstTensor,
   tileCopier(dst, src);
 }
 
-template <typename T, uint32_t srcM, uint32_t srcN, uint32_t dstM,
-          uint32_t dstN>
+template <typename T, typename LayoutL1, uint32_t srcM, uint32_t srcN,
+          uint32_t dstM, uint32_t dstN>
 CATLASS_DEVICE void copy_l1_to_l0b(LocalTensor<T> dstTensor,
                                    LocalTensor<T> srcTensor) {
   using LayoutL1_ = Catlass::detail::TagToLayout_t<T, LayoutL1>;

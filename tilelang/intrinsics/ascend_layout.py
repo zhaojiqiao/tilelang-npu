@@ -3,6 +3,16 @@
 
 from tvm import arith, DataType
 import tilelang.language as T
+from enum import Enum
+
+
+class AscendLayout(Enum):
+    kRowMajor = 0
+    kColMajor = 1
+    kzN = 2
+    kzZ = 3
+    knZ = 4
+
 
 BYTE_PER_C0 = 32
 C0_NUM_PER_FRACTAL = 16
@@ -63,4 +73,4 @@ def make_zn_layout(buf):
                          (j % colInFractal) * new_stride[1][0])
         ]
 
-    return T.Layout(shape, transform_func)
+    return T.Layout(shape, transform_func, layout_tag=AscendLayout.kzN.value)

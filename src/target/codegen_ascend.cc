@@ -72,6 +72,7 @@ void CodeGenTileLangAscend::PrintFuncPrefix(std::ostream &os) {
 std::string CodeGenTileLangAscend::Finish() {
   decl_stream << "#include \"common.h\"\n";
   decl_stream << "#include \"acl/acl.h\"\n";
+  decl_stream << "using namespace Catlass;\n";
   decl_stream << "\n";
   std::ostringstream code;
   code << decl_stream.str();

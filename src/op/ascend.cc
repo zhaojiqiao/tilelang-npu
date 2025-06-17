@@ -50,12 +50,17 @@ Stmt AscendCopy::Lower(const LowerArgs &T, arith::Analyzer *analyzer) const {
   std::stringstream ss;
   ss << "tl::ascend::";
   bool flag = false;
+  bool print_dst_layout = false;
+  bool print_src_layout = false;
   if (src.scope() == "global" && dst.scope() == "shared.dyn") {
     ss << "copy_gm_to_l1";
+    print_dst_layout = true;
   } else if (src.scope() == "shared.dyn" && dst.scope() == "wmma.matrix_a") {
     ss << "copy_l1_to_l0a";
+    print_src_layout = true;
   } else if (src.scope() == "shared.dyn" && dst.scope() == "wmma.matrix_b") {
     ss << "copy_l1_to_l0b";
+    print_src_layout = true;
   } else if (src.scope() == "wmma.accumulator" && dst.scope() == "global") {
     ss << "copy_l0c_to_gm";
     flag = true;
@@ -69,6 +74,15 @@ Stmt AscendCopy::Lower(const LowerArgs &T, arith::Analyzer *analyzer) const {
   }
 
   ss << "<" << get_dtype(src) << ",";
+  if (print_src_layout) {
+    ICHECK(T.layout_map.count(src))
+        << "Layout map does not contain source buffer: " << src->name;
+    ss << T.layout_map[src]->AscendLayoutStr() << ", ";
+  } else if (print_dst_layout) {
+    ICHECK(T.layout_map.count(dst))
+        << "Layout map does not contain destination buffer: " << dst->name;
+    ss << T.layout_map[dst]->AscendLayoutStr() << ", ";
+  }
   if (flag) {
     ss << get_dtype(dst) << ", ";
   }
