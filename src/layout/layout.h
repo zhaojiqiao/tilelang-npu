@@ -29,7 +29,7 @@ enum class AscendLayout {
 
 static const std::unordered_map<AscendLayout, std::string> ascendLayoutMap = {
     {AscendLayout::kRowMajor, "layout::RowMajor"},
-    {AscendLayout::kColMajor, "layout::ColMajor"},
+    {AscendLayout::kColMajor, "layout::ColumnMajor"},
     {AscendLayout::kzN, "layout::zN"},
     {AscendLayout::kzZ, "layout::zZ"},
     {AscendLayout::knZ, "layout::nZ"}};

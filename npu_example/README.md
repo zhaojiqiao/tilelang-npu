@@ -27,11 +27,12 @@ The `npu_example` directory contains resources for generating and testing NPU co
      python test.py
      ```
 
-### 2. Matrix Multiplication Code Generator (`npu_ws.py`)
+### 2. Matrix Multiplication Code Generator (`mm_basic.py`)
 - **Functionality**: Generates C++ code for matrix multiplication kernels
 - **How to use**:
   ```bash
-  python npu_ws.py
+  python mm_basic.py # a @ b
+  python mm_trans.py # a @ b.T
   ```
   This will output corresponding AscendC implementation code.
 

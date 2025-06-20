@@ -52,9 +52,11 @@ Stmt AscendCopy::Lower(const LowerArgs &T, arith::Analyzer *analyzer) const {
   bool flag = false;
   bool print_dst_layout = false;
   bool print_src_layout = false;
+  bool print_gm_layout = false;
   if (src.scope() == "global" && dst.scope() == "shared.dyn") {
     ss << "copy_gm_to_l1";
     print_dst_layout = true;
+    print_gm_layout = true;
   } else if (src.scope() == "shared.dyn" && dst.scope() == "wmma.matrix_a") {
     ss << "copy_l1_to_l0a";
     print_src_layout = true;
@@ -64,6 +66,7 @@ Stmt AscendCopy::Lower(const LowerArgs &T, arith::Analyzer *analyzer) const {
   } else if (src.scope() == "wmma.accumulator" && dst.scope() == "global") {
     ss << "copy_l0c_to_gm";
     flag = true;
+    print_gm_layout = true;
   } else if (src.scope() == "global" && dst.scope() == "shared") {
     ss << "copy_gm_to_ub";
   } else if (src.scope() == "shared" && dst.scope() == "global") {
@@ -74,6 +77,17 @@ Stmt AscendCopy::Lower(const LowerArgs &T, arith::Analyzer *analyzer) const {
   }
 
   ss << "<" << get_dtype(src) << ",";
+
+  if (flag) {
+    ss << get_dtype(dst) << ", ";
+  }
+  if (print_gm_layout) {
+    if (T.layout_map.count(src))
+      ss << T.layout_map[src]->AscendLayoutStr() << ", ";
+    else
+      ss << "layout::RowMajor, ";
+  }
+
   if (print_src_layout) {
     ICHECK(T.layout_map.count(src))
         << "Layout map does not contain source buffer: " << src->name;
@@ -82,9 +96,6 @@ Stmt AscendCopy::Lower(const LowerArgs &T, arith::Analyzer *analyzer) const {
     ICHECK(T.layout_map.count(dst))
         << "Layout map does not contain destination buffer: " << dst->name;
     ss << T.layout_map[dst]->AscendLayoutStr() << ", ";
-  }
-  if (flag) {
-    ss << get_dtype(dst) << ", ";
   }
   int src_ndim = src->shape.size(), dst_ndim = dst->shape.size();
   ss << src->shape[src_ndim - 2] << "," << src->shape[src_ndim - 1] << ", "

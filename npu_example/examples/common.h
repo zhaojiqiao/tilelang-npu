@@ -1,5 +1,6 @@
-#include "catlass/arch/arch.hpp"
 #include "catlass/catlass.hpp"
+#include "catlass/arch/arch.hpp"
+
 
 #include "catlass/detail/tag_to_layout.hpp"
 #include "catlass/epilogue/tile/copy_gm_to_ub.hpp"
@@ -20,12 +21,12 @@ using namespace Catlass::Epilogue::Tile;
 using namespace AscendC;
 
 using ArchTag = Arch::AtlasA2;
-using LayoutGM = layout::RowMajor;
+// using LayoutGM = layout::RowMajor;
 
 using LayoutL0A = layout::zZ;
 using LayoutL0B = layout::nZ;
 
-template <typename T, typename LayoutL1, uint32_t srcM, uint32_t srcN,
+template <typename T, typename LayoutGM, typename LayoutL1, uint32_t srcM, uint32_t srcN,
           uint32_t dstM, uint32_t dstN>
 CATLASS_DEVICE void copy_gm_to_l1(LocalTensor<T> dstTensor,
                                   GlobalTensor<T> srcTensor) {
@@ -104,7 +105,7 @@ CATLASS_DEVICE void mma(LocalTensor<T1> A, LocalTensor<T1> B, LocalTensor<T2> C,
   }
 }
 
-template <typename T1, typename T2, uint32_t srcM, uint32_t srcN, uint32_t dstM,
+template <typename T1, typename T2, typename LayoutGM, uint32_t srcM, uint32_t srcN, uint32_t dstM,
           uint32_t dstN>
 CATLASS_DEVICE void copy_l0c_to_gm(GlobalTensor<T2> dstTensor,
                                    LocalTensor<T1> srcTensor,

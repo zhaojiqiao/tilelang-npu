@@ -4,7 +4,7 @@ import argparse
 
 import tilelang
 import tilelang.language as T
-from tilelang.intrinsics import make_zn_layout
+from tilelang.intrinsics import make_zn_layout, make_col_major_layout, make_nz_layout
 
 tilelang.cache.clear_cache()
 
@@ -31,6 +31,7 @@ def matmul(M, N, K, block_M, block_N, block_K, K_L1, S1, S2, dtype="float16", ac
             B: T.Tensor((K, N), dtype),
             C: T.Tensor((M, N), dtype),
     ):
+
         with T.Kernel(m_num * n_num, is_npu=True) as (cid, _):
 
             T.use_swizzle(M, N, K, block_M, block_N, off=3)
@@ -42,8 +43,9 @@ def matmul(M, N, K, block_M, block_N, block_K, K_L1, S1, S2, dtype="float16", ac
             B_L1 = T.alloc_L1((S1, K_L1, block_N), dtype)
 
             T.annotate_layout({
+                B: make_col_major_layout(B),
                 A_L1: make_zn_layout(A_L1),
-                B_L1: make_zn_layout(B_L1),
+                B_L1: make_nz_layout(B_L1),
             })
 
             A_L0 = T.alloc_L0A((S2, block_M, block_K), dtype)
