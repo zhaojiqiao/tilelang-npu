@@ -76,7 +76,7 @@ Stmt AscendCopy::Lower(const LowerArgs &T, arith::Analyzer *analyzer) const {
                << ", dst = " << dst.scope();
   }
 
-  ss << "<" << get_dtype(src) << ",";
+  ss << "<" << get_dtype(src) << ", ";
 
   if (flag) {
     ss << get_dtype(dst) << ", ";
@@ -98,8 +98,8 @@ Stmt AscendCopy::Lower(const LowerArgs &T, arith::Analyzer *analyzer) const {
     ss << T.layout_map[dst]->AscendLayoutStr() << ", ";
   }
   int src_ndim = src->shape.size(), dst_ndim = dst->shape.size();
-  ss << src->shape[src_ndim - 2] << "," << src->shape[src_ndim - 1] << ", "
-     << dst->shape[dst_ndim - 2] << "," << dst->shape[dst_ndim - 1] << ">";
+  ss << src->shape[src_ndim - 2] << ", " << src->shape[src_ndim - 1] << ", "
+     << dst->shape[dst_ndim - 2] << ", " << dst->shape[dst_ndim - 1] << ">";
 
   Array<PrimExpr> src_indices, dst_indices;
 
