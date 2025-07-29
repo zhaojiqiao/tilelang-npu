@@ -30,7 +30,7 @@ def vec_add(M, N, K, block_M, block_N, dtype="float16"):
             B: T.Tensor((K, N), dtype),
             C: T.Tensor((M, N), dtype),
     ):
-        with T.Kernel(m_num * n_num, is_npu=True) as (cid, vid):
+        with T.Kernel(m_num * n_num, is_npu=True) as (cid, _):
             bx = cid // n_num
             by = cid % n_num
             A_VEC = T.alloc_ub((block_M, block_N), dtype)
