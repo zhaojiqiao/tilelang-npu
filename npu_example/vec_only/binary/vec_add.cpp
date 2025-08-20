@@ -4,6 +4,9 @@ using namespace Catlass;
 
 CATLASS_GLOBAL
 void main_kernel( GM_ADDR A_handle,  GM_ADDR B_handle,  GM_ADDR C_handle) {
+  if (g_coreType == AscendC::AIC) {
+    return;
+  }
   AscendC::TPipe pipe;
 
   AscendC::GlobalTensor<half> A;

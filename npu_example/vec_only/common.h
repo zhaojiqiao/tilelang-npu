@@ -98,10 +98,10 @@ CATLASS_DEVICE void mma(LocalTensor<T1> A, LocalTensor<T1> B, LocalTensor<T2> C,
   Mmad(C, A, B, mmadParams);
 
   constexpr uint32_t PIPE_M_BARRIER_THRESHOLD = 10;
-  if constexpr ((M / C0_NUM_PER_FRACTAL) * (N / C0_NUM_PER_FRACTAL) <
-                PIPE_M_BARRIER_THRESHOLD) {
-    PipeBarrier<PIPE_M>();
-  }
+  // if constexpr ((M / C0_NUM_PER_FRACTAL) * (N / C0_NUM_PER_FRACTAL) <
+  //               PIPE_M_BARRIER_THRESHOLD) {
+  //   PipeBarrier<PIPE_M>();
+  // }
 }
 
 template <typename T1, typename T2, typename LayoutGM, uint32_t srcM, uint32_t srcN, uint32_t dstM,
@@ -181,6 +181,65 @@ CATLASS_DEVICE void tile_add(LocalTensor<T> const &ubIn0,
                              LocalTensor<T> const &ubIn1,
                              LocalTensor<T> const &ubOut) {
   AscendC::Add(ubOut, ubIn0, ubIn1, Len);
+}
+
+template <typename T, uint32_t Len, uint32_t op>
+CATLASS_DEVICE void elementwise_binary(LocalTensor<T> const &ubIn0,
+                                LocalTensor<T> const &ubIn1,
+                                LocalTensor<T> const &ubOut) {
+  // AscendC::Elementwise(ubOut, ubIn0, ubIn1, op, Len);
+  if constexpr (op == 0) {
+    AscendC::Add(ubOut, ubIn0, ubIn1, Len);
+  } else if constexpr (op == 1) {
+    AscendC::Sub(ubOut, ubIn0, ubIn1, Len);
+  } else if constexpr (op == 2) {
+    AscendC::Mul(ubOut, ubIn0, ubIn1, Len);
+  } else if constexpr (op == 3) {
+    AscendC::Div(ubOut, ubIn0, ubIn1, Len);
+  }
+}
+
+
+template <typename T, uint32_t Len, uint32_t op>
+CATLASS_DEVICE void elementwise_unary(LocalTensor<T> const &ubIn,
+                                LocalTensor<T> const &ubOut) {
+  // AscendC::Elementwise(ubOut, ubIn0, ubIn1, op, Len);
+  if constexpr (op == 0) {
+    // TODO: Check layout, Len only has bug.
+    AscendC::Exp(ubOut, ubIn, Len);
+  } 
+}
+
+template <typename src, typename dst, uint32_t Len>
+CATLASS_DEVICE void cast(LocalTensor<src> const &ubIn,
+                        LocalTensor<dst> const &ubOut) {
+  AscendC::Cast(ubOut, ubIn, AscendC::RoundMode::CAST_RINT, Len);
+}
+
+template <typename T, uint32_t Len>
+CATLASS_DEVICE void fill(LocalTensor<T> const &ubOut,
+                         T value) {
+  AscendC::Duplicate(ubOut, value, Len);
+}
+
+template <typename T, uint32_t M, uint32_t N, class pattern>
+CATLASS_DEVICE void reduce_sum(
+  LocalTensor<T> const &srcTensor,
+  LocalTensor<T> const &dstTensor,
+  LocalTensor<uint8_t> const &sharedTmpBuffer
+) {
+  uint32_t shape[] = {M, N};
+  AscendC::ReduceSum<T, pattern>(dstTensor, srcTensor, sharedTmpBuffer, shape, true);
+}
+
+template <typename T, uint32_t M, uint32_t N, class pattern>
+CATLASS_DEVICE void reduce_max(
+  LocalTensor<T> const &srcTensor,
+  LocalTensor<T> const &dstTensor,
+  LocalTensor<uint8_t> const &sharedTmpBuffer
+) {
+  uint32_t shape[] = {M, N};
+  AscendC::ReduceMax<T, pattern>(dstTensor, srcTensor, sharedTmpBuffer, shape, true);
 }
 
 } // namespace tl::ascend

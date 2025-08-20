@@ -1,7 +1,6 @@
 lib_path = "./kernel_lib.so"
 
 import torch
-from typing import Callable, Optional, Literal, List, Union
 from functools import partial
 
 import argparse
