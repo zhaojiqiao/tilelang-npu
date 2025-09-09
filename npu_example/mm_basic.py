@@ -53,12 +53,19 @@ def matmul(M, N, K, block_M, block_N, block_K, K_L1, S1, S2, dtype="float16", ac
 
             T.init_flag(FLAG)
             loop_k = T.ceildiv(K, K_L1)
+
+            with T.rs("MTE2"):
+                T.wait_flag("M", 0)
+                T.copy(A[bx * block_M, 0], A_L1[0, :, :])
+                T.copy(B[0, by * block_N], B_L1[0, :, :])
+                T.set_flag("MTE1", 0)
             for k in T.serial(loop_k):
-                with T.rs("MTE2"):
-                    T.wait_flag("M", k % S1)
-                    T.copy(A[bx * block_M, k * K_L1], A_L1[k % S1, :, :])
-                    T.copy(B[k * K_L1, by * block_N], B_L1[k % S1, :, :])
-                    T.set_flag("MTE1", k % S1)
+                if k < loop_k - 1:
+                    with T.rs("MTE2"):
+                        T.wait_flag("M", (k+1) % S1)
+                        T.copy(A[bx * block_M, (k+1) * K_L1], A_L1[(k+1) % S1, :, :])
+                        T.copy(B[(k+1) * K_L1, by * block_N], B_L1[(k+1) % S1, :, :])
+                        T.set_flag("MTE1", (k + 1) % S1)
 
                 loop_kk = T.ceildiv(K_L1, block_K)
 
