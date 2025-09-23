@@ -156,6 +156,9 @@ def host_codegen(host_mod: tvm.IRModule, target_host: Target) -> tvm.IRModule:
 
 
 def device_codegen(device_mod: tvm.IRModule, target: Target) -> tvm.IRModule:
+    if target.kind.name == "npuir":
+        device_mod = tvm._ffi.get_global_func("target.build.tilelang_npuir")(device_mod, target)
+        return device_mod
     # device_mod = tilelang.transform.LowerDeviceStorageAccessInfo()(device_mod)
     # device_mod = tir.transform.LowerIntrin()(device_mod)
     device_mod = tir.transform.Simplify()(device_mod)
@@ -217,10 +220,13 @@ def lower(
         params = extrac_params(func) if not runtime_only else None
         mod = tvm.IRModule({func.attrs["global_symbol"]: func})
 
-    target_host = canon_target_host(None, target_host)
+    if isinstance(target, str):
+        target = determine_target(target)
+
+    target_host = canon_target_host(target, target_host)
 
     target_host = tvm.target.Target.canon_target(target_host)
-    target = tvm.target.Target(target_host, target_host)
+    target = tvm.target.Target(target, target_host)
 
     # _is_host_call = get_host_call(is_device_c=is_cpu_device_backend(target))
     # _is_device_call = get_device_call(is_device_c=is_cpu_device_backend(target))
