@@ -1,6 +1,8 @@
 # Copyright (c) Tile-AI Corporation.
 # Licensed under the MIT License.
 
+import shutil
+
 from typing import Literal, Union
 from tilelang import tvm as tvm
 from tvm.target import Target
@@ -14,6 +16,7 @@ AVALIABLE_TARGETS = {
     "webgpu",
     "c",  # represent c source backend
     "llvm",
+    "npuir"
 }
 
 
@@ -67,12 +70,15 @@ def determine_target(target: Union[str, Target, Literal["auto"]] = "auto",
         # Check for CUDA and HIP availability
         is_cuda_available = check_cuda_availability()
         is_hip_available = check_hip_availability()
+        is_npuir_available = shutil.switch('bishengir-compile')
 
         # Determine the target based on availability
         if is_cuda_available:
             return_var = "cuda"
         elif is_hip_available:
             return_var = "hip"
+        elif is_npuir_available:
+            return_var = "npuir"
         else:
             raise ValueError("No CUDA or HIP available on this system.")
     else:
