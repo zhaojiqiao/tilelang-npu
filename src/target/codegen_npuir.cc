@@ -1234,7 +1234,7 @@ void CodeGenTileLangNPUIR::VisitExpr_(const AddNode *op, std::ostream& os) {
   } 
 }
 
-void CodeGenTileLangNPUIR::VisitSExpr_(const SubNode *op, std::ostream &os) {
+void CodeGenTileLangNPUIR::VisitExpr_(const SubNode *op, std::ostream &os) {
   if (op->dtype.is_int() || op->dtype.is_uint()) {
     PrintBinary(op, "subi", os, this);
   } else if (op->dtype.is_float()) {

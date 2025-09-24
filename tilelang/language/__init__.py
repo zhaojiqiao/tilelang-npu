@@ -87,12 +87,12 @@ from .customize_npuir import  (
     npuir_cast,
     npuir_reduce,
     rs,
-    set_falg,
+    set_flag,
     wait_flag,
     pipe_barrier,
     block_barrier,
     subblock_barrier,
-    sunc_block_set,
+    sync_block_set,
     sync_block_wait,
     Scope
 )
