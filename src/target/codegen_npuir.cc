@@ -1230,7 +1230,7 @@ void CodeGenTileLangNPUIR::VisitExpr_(const AddNode *op, std::ostream& os) {
   } 
 }
 
-void CodeGenTileLangNPUIR::VisitStmt_(const SubNode *op, syd::ostream& os) {
+void CodeGenTileLangNPUIR::VisitSExpr_(const SubNode *op, std::ostream &os) {
   if (op->dtype.is_int() || op->dtype.is_uint()) {
     PrintBinary(op, "subi", os, this);
   } else if (op->dtype.is_float()) {
@@ -1610,3 +1610,4 @@ Memref::Memref(String name, Buffer buffer, bool is_arg_in) {
 
 
 } // namespace tvm
+
