@@ -51,6 +51,8 @@ def allow_vectorize(pass_ctx: Optional[PassContext] = None) -> bool:
 def LowerAndLegalize(mod: IRModule, target: Target) -> IRModule:
     # Bind the target device information to the module
     mod = tir.transform.BindTarget(target)(mod)
+    if target.kind.name == "npuir":
+        return mod
 
     # Legalize the frontend IR to make it compatible with TVM
     mod = tilelang.transform.FrontendLegalize()(mod)
@@ -92,6 +94,11 @@ def OptimizeForTarget(mod: IRModule, target: Target) -> IRModule:
         mod = tilelang.transform.MergeIfStmt()(mod)
         mod = tilelang.transform.RewriteWgmmaSync()(mod)
         mod = tilelang.transform.InjectFenceProxy()(mod)
+    elif target.kind.name == "npuir":
+        mod = tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)
+        mod = tir.transform.LowerOpaqueBlock()(mod)
+        mod = tir.transform.RemoveNoOp()(mod)
+        return mod
     else:
         mod = tilelang.transform.IfStmtBinding()(mod)
         mod = tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)

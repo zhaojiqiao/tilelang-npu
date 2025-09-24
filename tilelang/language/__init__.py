@@ -71,6 +71,31 @@ from .customize import (
     # npu_copy as copy,  # noqa: F401, F811
     npu_add as tile_add,  # noqa: F401, F811
 )
+from .customize_npuir import  (
+    npuir_copy as copy,
+    npuir_add,
+    npuir_sub,
+    npuir_max,
+    npuir_min,
+    npuir_mul,
+    npuir_div,
+    npuir_exp,
+    npuir_dot,
+    npuir_load_nd2nz,
+    npuir_store_fixpipe,
+    npuir_brc,
+    npuir_cast,
+    npuir_reduce,
+    rs,
+    set_falg,
+    wait_flag,
+    pipe_barrier,
+    block_barrier,
+    subblock_barrier,
+    sunc_block_set,
+    sync_block_wait,
+    Scope
+)
 from .logical import any_of, all_of  # noqa: F401
 from .builtin import *  # noqa: F401
 

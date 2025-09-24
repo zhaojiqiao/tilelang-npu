@@ -124,6 +124,15 @@ if(USE_CUDA)
   list(APPEND TILE_LANG_SRCS ${TILE_LANG_CUDA_SRCS})
 endif()
 
+# Include NPUIR source files if NPUIR is enabled
+if(USE_NPUIR)
+  tilelang_file_glob(GLOB TILE_LANG_NPUIR_SRCS
+    src/target/codegen_npuir.cc
+    src/target/rt_mod_npuir.cc
+  )
+  list(APPEND TILE_LANG_SRCS ${TILE_LANG_NPUIR_SRCS})
+endif()
+
 if(USE_ASCEND)
   tilelang_file_glob(GLOB TILE_LANG_ASCEND_SRCS
     src/target/codegen_ascend.cc
