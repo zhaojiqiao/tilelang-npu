@@ -997,7 +997,7 @@ void CodeGenTileLangNPUIR::DotCodegen(const CallNode* op, std::ostream& os){
 
   this->PrintIndent();
   this->stream << "hivm.hir.mmadL1";
-  if(npuirop.a_transpose || npuirop.b_transpose) {
+  if (npuirop.a_transpose || npuirop.b_transpose) {
     this->stream << " {";
     this->stream << (npuirop.a_transpose ? "a_transpose" : "");
     this->stream << (npuirop.a_transpose && npuirop.b_transpose ? ", " : "");
