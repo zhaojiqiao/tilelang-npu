@@ -107,7 +107,7 @@ public:
   
   // Override this as a work around for __grid_constant__ parameter
   void AddFunction(const GlobalVar &gvar, const PrimFunc &f);
-  void AddFunctionForCoreType(const GlobalVal &gvar, const PrimFunc &f);
+  void AddFunctionForCoreType(const GlobalVar &gvar, const PrimFunc &f);
 private:
   template <typename T>
   std::string ScalarConvertType(T *imm, DataType targetDtype);
@@ -122,10 +122,10 @@ private:
   void DotCodegen(const CallNode *op, std::ostream& os);
   void BinaryVecOpCodegen(const CallNode *op, std::string opName, std::ostream& os);
   template <typename T>
-  void SyncBlockSetCodegen(const const T &sync_op, std::ostream& os);
+  void SyncBlockSetCodegen(const  T &sync_op, std::ostream& os);
   template <typename T>
-  void SyncBlockWaitCodegen(const const T &sync_op, std::ostream& os);
-  template <typename T>
+  void SyncBlockWaitCodegen(const  T &sync_op, std::ostream& os);
+  
   void BarrierCodegen(const CallNode *op, std::ostream& os);
   template <typename T>
   void PipeFlagCodegen(const T &sync_op, std::ostream& os);
@@ -188,3 +188,4 @@ private:
 
 
 #endif //TVM_TL_TARGET_CODEGEN_CUDA_H_
+
