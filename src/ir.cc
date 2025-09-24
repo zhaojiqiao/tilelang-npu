@@ -393,7 +393,7 @@ public:
 ScopeFrame Scope(String scope_name) {
   ObjectPtr<ScopeFrameNode> n = make_object<ScopeFrameNode>();
   int scope_id = 0;
-  if (scope_name == "Vector")
+  if (scope_name == "V")
     scope_id = 1;
   AttrFrame attr_frame = Attr(Integer(0), "resource_scope", Integer(scope_id));
   n->frames.push_back(attr_frame);
