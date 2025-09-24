@@ -75,21 +75,21 @@ Stmt AscendCopy::Lower(const LowerArgs &T, arith::Analyzer *analyzer) const {
     LOG(FATAL) << "Unsupported scope: src = " << src.scope()
                << ", dst = " << dst.scope();
   }
-  #define NPUIR_BINARY_OP_CTOR(OPNAME, opname)                                    
-  Npuir##OPNAME::Npuir##OPNAME(Array<PrimExpr> args, BufferMap vmap) {          
-    Array<Range> rgs[3];                                                        
-    Buffer bf[3];                                                               
-    for (int i = 0; i < 3; i++) {                                               
-      auto expr = args[i];                                                      
-      auto call = expr.as<CallNode>();                                          
-      ICHECK(call);                                                             
-      auto region = RegionOp(call->args, vmap);                                 
-      rgs[i] = region.GetRanges();                                              
-      bf[i] = region.GetBuffer();                                               
-    }                                                                           
-    std::tie(this->src0, this->src1, this->dst) = std::tie(bf[0], bf[1], bf[2]);
-    std::tie(this->src0_range, this->src1_range, this->dst_range) =             
-        std::tie(rgs[0], rgs[1], rgs[2]);                                       
+  #define NPUIR_BINARY_OP_CTOR(OPNAME, opname)                                  \
+  Npuir##OPNAME::Npuir##OPNAME(Array<PrimExpr> args, BufferMap vmap) {          \
+    Array<Range> rgs[3];                                                        \
+    Buffer bf[3];                                                               \
+    for (int i = 0; i < 3; i++) {                                               \
+      auto expr = args[i];                                                      \
+      auto call = expr.as<CallNode>();                                          \
+      ICHECK(call);                                                             \
+      auto region = RegionOp(call->args, vmap);                                 \
+      rgs[i] = region.GetRanges();                                              \
+      bf[i] = region.GetBuffer();                                               \
+    }                                                                           \
+    std::tie(this->src0, this->src1, this->dst) = std::tie(bf[0], bf[1], bf[2]);\
+    std::tie(this->src0_range, this->src1_range, this->dst_range) =             \
+        std::tie(rgs[0], rgs[1], rgs[2]);                                       \
   }                                                                             
   TIR_REGISTER_TL_OP(Npuir##OPNAME, npuir_##opname)                             
       .set_num_inputs(3)                                                        
@@ -103,25 +103,25 @@ Stmt AscendCopy::Lower(const LowerArgs &T, arith::Analyzer *analyzer) const {
   NPUIR_BINARY_OP_CTOR(Max, max)
   NPUIR_BINARY_OP_CTOR(Min, min)
  
-  #define NPUIR_UNARY_OP_CTOR(OPNAME, opname)                                     
-    Npuir##OPNAME::Npuir##OPNAME(Array<PrimExpr> args, BufferMap vmap) {          
-      Array<Range> rgs[2];                                                        
-      Buffer bf[2];                                                               
-      for (int i = 0; i < 2; i++) {                                               
-        auto expr = args[i];                                                      
-        auto call = expr.as<CallNode>();                                          
-        ICHECK(call);                                                             
-        auto region = RegionOp(call->args, vmap);                                 
-        rgs[i] = region.GetRanges();                                              
-        bf[i] = region.GetBuffer();                                               
-      }                                                                           
-      std::tie(this->src, this->dst) = std::tie(bf[0], bf[1]);                    
-      std::tie(this->src_range, this->dst_range) = std::tie(rgs[0], rgs[1]);      
-    }                                                                             
-    TIR_REGISTER_TL_OP(Npuir##OPNAME, npuir_##opname)                             
-        .set_num_inputs(2)                                                        
-        .set_attr<TCallEffectKind>("TCallEffectKind",                             
-                                   Integer(CallEffectKind::kOpaque));
+  #define NPUIR_UNARY_OP_CTOR(OPNAME, opname)                                    \
+    Npuir##OPNAME::Npuir##OPNAME(Array<PrimExpr> args, BufferMap vmap) {         \
+      Array<Range> rgs[2];                                                       \
+      Buffer bf[2];                                                              \
+      for (int i = 0; i < 2; i++) {                                              \
+        auto expr = args[i];                                                     \
+        auto call = expr.as<CallNode>();                                         \
+        ICHECK(call);                                                            \
+        auto region = RegionOp(call->args, vmap);                                \
+        rgs[i] = region.GetRanges();                                             \
+        bf[i] = region.GetBuffer();                                              \
+      }                                                                          \
+      std::tie(this->src, this->dst) = std::tie(bf[0], bf[1]);                   \
+      std::tie(this->src_range, this->dst_range) = std::tie(rgs[0], rgs[1]);     \
+    }                                                                            \
+    TIR_REGISTER_TL_OP(Npuir##OPNAME, npuir_##opname)                            \
+        .set_num_inputs(2)                                                       \
+        .set_attr<TCallEffectKind>("TCallEffectKind",                            \
+                                   Integer(CallEffectKind::kOpaque));            \
   ss << "<" << get_dtype(src) << ", ";
   NPUIR_UNARY_OP_CTOR(Exp, exp)
 
@@ -155,7 +155,7 @@ Stmt AscendCopy::Lower(const LowerArgs &T, arith::Analyzer *analyzer) const {
     .set_num_inputs(2)
     .set_attr<TCallEffectKind>("TCallEffectKind",
                                Integer(CallEffectKind::kOpaque));
-+
+
 NpuirNd2nz::NpuirNd2nz(Array<PrimExpr> args, BufferMap vmap) {
   Array<Range> rgs[2];
   Buffer bf[2];
@@ -318,7 +318,7 @@ NpuirReduce::NpuirReduce(Array<PrimExpr> args, BufferMap vmap) {
     bf[i] = region.GetBuffer();
   }
   std::tie(this->src, this->dst) = std::tie(bf[0], bf[1]);
-  std::tie(this->src_range, this->dst_range) = std::tie(rgs[0], rgs[1
+  std::tie(this->src_range, this->dst_range) = std::tie(rgs[0], rgs[1]);
 
   std::string str_reduce_dims = args[2].as<StringImmNode>()->value;
   std::stringstream ss(str_reduce_dims);
@@ -390,4 +390,3 @@ TIR_REGISTER_TL_OP(NpuirReduce, npuir_reduce)
 
 } // namespace tl
 } // namespace tvm
-  } //namespace tvm
