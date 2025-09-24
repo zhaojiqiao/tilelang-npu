@@ -50,12 +50,12 @@ static std::map<NPU_CORETYPE, std::string> coretype_syncblock_map {
     {NPU_CORETYPE::AIV, "VECTOR"}};
 
 static std::map<int, std::string> fixpipe_pre_relu_mode{
-    {0, "NO_RELU"}, {1, "NORMAL_RELU"}, {2, "LEAKY_RELU"}, {3 "P_RELU"}};
+    {0, "NO_RELU"}, {1, "NORMAL_RELU"}, {2, "LEAKY_RELU"}, {3, "P_RELU"}};
 
 static std::map<tl::SyncBlockMode, std::string> SyncBlockMode_str{
     {tl::SyncBlockMode::INTER_BLOCK, "INTER_BLOCK_SYNCHRONIZATION"},
     {tl::SyncBlockMode::INTER_SUBBLOCK, "INTER_SUBBLOCK_SYNCHRONIZATION"},
-    {tl::SyncBlockMode::INTER_SUBBLOCK, "INTRA_SUBBLOCK_SYNCHRONIZATION"}};
+    {tl::SyncBlockMode::INTRA_BLOCK, "INTRA_BLOCK_SYNCHRONIZATION"}};
 
 constexpr uint8_t FLAG_ID_BITS = 64;
 
@@ -64,23 +64,26 @@ inline void PrintBinary(const T *op, const char *opstr, std::ostream &os,
                         CodeGenC *CG) {
   auto PrintOp = [op, &os, CG](auto Operand) {
     std::ostringstream tmpos;
-      if (Operand.template as <tvm::tir::IntImmNode)() ||
-          Operand.template as <tvm::tir::VarNode() {
-        CG->PrintExpr(Operand, tmpos << "%");
-      } else if (auto *float_imm =
-                      Operand.template as<tvm::tir::FloatImmNode>()) {
-        tmpos << "Invalid float scalar operation"
-              << "\n";
-      } else {
-        // TOD): codegen expr as a seperate instruction in mlir
-        tmpos << "<<<expr:%" << Operand << ">>>";
-      }
-      return tmpos.str();
+    if (Operand.template as<tvm::tir::IntImmNode>() ||
+        Operand.template as<tvm::tir::VarNode>()) {
+      CG->PrintExpr(Operand, tmpos << "%");
+    } else if (auto *float_imm =
+                   Operand.template as<tvm::tir::FloatImmNode>()) {
+      tmpos << "Invalid float scalar operation"
+            << "\n";
+    } else {
+      // TODO: codegen expr as a seperate instruction in mlir
+      tmpos << "<<<expr:%" << Operand << ">>>";
+    }
+    return tmpos.str();
   };
   if (op->dtype.lanes() == 1) {
     // left op
     os << "arith." << opstr << " ";
     os << PrintOp(op->a);
+    os << ", ";
+    // right op
+    os << PrintOp(op->b);
     os << " : ";
     CG->PrintType(op->a->dtype, os);
   } else {
@@ -111,21 +114,21 @@ bool IsEqual(Array<PrimExpr> a, Array<PrimExpr> b) {
 }
 
 bool AllZero(Array<PrimExpr> a) {
-  for (PrimExpr pe: a) {
+  for (PrimExpr pe : a) {
     if (!is_zero(pe))
       return false;
   }
   return true;
 }
 
-std::vector<unsigned long> GetStrideFromShape(Array<tvm::PrimExpr shape) {
+std::vector<unsigned long> GetStrideFromShape(Array<tvm::PrimExpr> shape) {
   std::vector<unsigned long> strides;
   unsigned long total_size = 1;
   std::vector<int> shape_int;
   for (PrimExpr s : shape) {
     if (auto s_int = as_const_int(s)) {
-        total_size *= *s_int;
-        shape_int.push_back(*s_int);
+      total_size *= *s_int;
+      shape_int.push_back(*s_int);
     }
   }
   for (int i = 0; i < shape.size(); i++) {
@@ -142,7 +145,7 @@ String GetBufferStrides(Buffer buffer) {
   std::vector<unsigned long> strides;
   int dim = buffer->shape.size();
   if (buffer->strides.empty()) {
-      strides = GetStrideFromShape(shape);
+    strides = GetStrideFromShape(shape);
   } else {
     for (PrimExpr stride : buffer->strides) {
       if (auto stride_int = as_const_int(stride)) {
@@ -150,7 +153,7 @@ String GetBufferStrides(Buffer buffer) {
       }
     }
   }
-  Atring res = "[";
+  String res = "[";
   for (int i = 0; i < dim; i++) {
     if (i > 0)
       res = res + ", ";
@@ -159,6 +162,7 @@ String GetBufferStrides(Buffer buffer) {
   res = res + "]";
   return res;
 }
+
 static std::vector<int> getBroadcastDim(Array<PrimExpr> &buffer_shape0,
                                         Array<PrimExpr> &buffer_shape1) {
   assert(buffer_shape0.size() == buffer_shape1.size());
@@ -166,13 +170,13 @@ static std::vector<int> getBroadcastDim(Array<PrimExpr> &buffer_shape0,
   for (int i = 0; i < buffer_shape0.size(); i++) {
     if (*as_const_int(buffer_shape0[i]) == 1 &&
         *as_const_int(buffer_shape1[i]) != 1) {
-        dims.emplace_back(i);
+      dims.emplace_back(i);
     }
     if (*as_const_int(buffer_shape0[i]) != 1 &&
         *as_const_int(buffer_shape1[i]) == 1) {
-        dims.emplace_back(i);
+      dims.emplace_back(i);
     }
-    assert(*as_const_int(buffer_shape0[i]) == *as_const_int(buffer_shape1[i]))
+    assert(*as_const_int(buffer_shape0[i]) == *as_const_int(buffer_shape1[i]));
   }
   return dims;
 }
@@ -189,7 +193,7 @@ static std::string broadcastAttrCodegen(Array<PrimExpr> &buffer_shape0,
   std::ostringstream temp;
   if (broadcastDims.size()) {
     temp << " = [";
-    for (auto dim: broadcastDims) {
+    for (auto dim : broadcastDims) {
       temp << dim;
       if (dim != broadcastDims.back()) {
         temp << ", ";
@@ -201,19 +205,19 @@ static std::string broadcastAttrCodegen(Array<PrimExpr> &buffer_shape0,
 }
 
 template <typename T>
-std::string CodeGenTileLangNPUIR::ScalarConvertType(T *imm
+std::string CodeGenTileLangNPUIR::ScalarConvertType(T *imm,
                                                     DataType targetDtype) {
-  auto castNote = std::make_unique<tir::Cast>(targetDtype, *imm);
+  auto castNode = std::make_unique<tir::Cast>(targetDtype, *imm);
   std::string castId = SSAGetID(PrintExpr(*castNode), targetDtype);
   return castId;
 }
 
 CodeGenTileLangNPUIR::CodeGenTileLangNPUIR() {
-  // restrict_keyword_ = "GM_ADDR";
+  //  restrict_keyword_ = "GM_ADDR";
 }
 
 void CodeGenTileLangNPUIR::PrintFuncPrefix(std::ostream &os) {
-  // os << "CATLASS_GLOBAL\n";
+  //  os << "CATLASS_GLOBAL\n";
 }
 
 std::string CodeGenTileLangNPUIR::Finish() {
@@ -221,36 +225,36 @@ std::string CodeGenTileLangNPUIR::Finish() {
   // decl_stream << "#include \"acl/acl.h\"\n";
   // decl_stream << "using namespace Catlass;\n";
   // decl_stream << "\n";
-  std:ostringstream code;
+  std::ostringstream code;
   code << decl_stream.str();
   code << stream.str();
-  return code.str()
+  return code.str();
 }
 
 void CodeGenTileLangNPUIR::VisitStmt_(const tir::ForNode *op) {
-  auto flush == false;
+  auto flush = false;
   if (flush_out_) {
     flush = true;
     flush_out_ = false;
   }
   // TODO: Do we need add unroll attribute?
   // if (op->kind == tir::ForKind::kUnrolled) {
-  //     PrintIndent();
-  //     stream << "#pragma unroll\n";
+  //   PrintIndent();
+  //   stream << "#pragma unroll\n";
   // }
-  std::string upperBoundId = 
+  std::string upperBoundId =
       SSAGetID(PrintExpr(arith::Analyzer().Simplify(op->extent + op->min)),
                op->extent->dtype);
-  assert(op->exten.dtype().is_int() || op->extent.dtype().is_uint());
+  assert(op->extent.dtype().is_int() || op->extent.dtype().is_uint());
   assert(op->min.dtype() == op->extent.dtype());
-  std::string vid = 
+  std::string vid =
       SSAGetID(AllocVarID(op->loop_var.get()), op->loop_var->dtype);
   std::string lowerBoundId = SSAGetID(PrintExpr(op->min), op->min->dtype);
   std::string extentId = SSAGetID(PrintExpr(op->extent), op->extent->dtype);
   auto stepNode = std::make_unique<IntImm>(op->min.dtype(), 1);
   auto stepId = SSAGetID(PrintExpr(*stepNode), stepNode->dtype());
   PrintIndent();
-  stream << "scf.for %" << vid << "= %" << lowerBoundId << " to %"
+  stream << "scf.for %" << vid << " = %" << lowerBoundId << " to %"
          << upperBoundId << " step %" << stepId << " : ";
   PrintType(op->min.dtype(), stream);
   stream << " {\n";
@@ -262,16 +266,16 @@ void CodeGenTileLangNPUIR::VisitStmt_(const tir::ForNode *op) {
 }
 
 void CodeGenTileLangNPUIR::VisitStmt_(const tir::IfThenElseNode *op) {
-  std::string cond == SSAGetID(PrintExpr(op->condition), op->condition->dtype);
+  std::string cond = SSAGetID(PrintExpr(op->condition), op->condition->dtype);
   PrintIndent();
-  stream << "scf.if %" << cond << " {\n}";
+  stream << "scf.if %" << cond << " {\n";
   int then_scope = BeginScope();
   PrintStmt(op->then_case);
   this->EndScope(then_scope);
   if (op->else_case) {
     PrintIndent();
     stream << "} else {\n";
-    int else_scope  = BeginScope();
+    int else_scope = BeginScope();
     PrintStmt(op->else_case.value());
     this->EndScope(else_scope);
   }
@@ -286,9 +290,9 @@ void CodeGenTileLangNPUIR::PrintSSAAssign(const std::string &target,
 
 void CodeGenTileLangNPUIR::PrintShape(Array<PrimExpr> shape,
                                       std::string delimiter, std::ostream &os) {
-  for (size_t i = 0; i < shape.size(); i++) {
-      if (i != 0)
-        os << delimiter;
+  for (size_t i = 0; i < shape.size(); i++){
+    if (i != 0)
+      os << delimiter;
     os << shape[i];
   }
 }
@@ -297,14 +301,14 @@ void CodeGenTileLangNPUIR::PrintType(DataType t,
                                      std::ostream &os) { // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
-      // ICHECK(t.si_scalar()) << "do not yet support vector types";
-      // os << "void*";
-      return;
+    // ICHECK(t.is_scalar()) << "do not yet support vector types";
+    // os << "void*";
+    return;
   }
 
   if (t.is_void()) {
-      //    os << "void";
-      return;
+    //    os << "void";
+    return;
   }
 
   bool fail = false;
@@ -315,7 +319,7 @@ void CodeGenTileLangNPUIR::PrintType(DataType t,
       if (t.is_scalar()) {
         os << "f16";
       } else {
-          fail = true;
+        fail = true;
       }
       break;
     case 32:
@@ -333,7 +337,7 @@ void CodeGenTileLangNPUIR::PrintType(DataType t,
   } else if (t.is_bfloat16()) {
     enable_bf16_ = true;
     if (t.is_scalar()) {
-        os << "bf16";
+      os << "bf16";
     } else {
       fail = true;
     }
@@ -343,7 +347,7 @@ void CodeGenTileLangNPUIR::PrintType(DataType t,
     os << "i1";
     return;
   } else if (t.is_uint() || t.is_int()) {
-    if (t.is_uint) {
+    if (t.is_uint()) {
       os << "u";
     }
     switch (t.bits()) {
@@ -357,23 +361,23 @@ void CodeGenTileLangNPUIR::PrintType(DataType t,
     }
     case 4: {
       if (t.is_scalar()) {
-          os << "i4";
-          return;
+        os << "i4";
+        return;
       } else {
         LOG(FATAL) << "Cannot convert type " << t;
       }
     }
     case 8: {
       if (t.is_scalar()) {
-          os << "i8";
-          return;
+        os << "i8";
+        return;
       } else {
         LOG(FATAL) << "Cannot convert type " << t;
       }
     }
     case 16: {
       if (t.is_scalar()) {
-          os << "i16";
+        os << "i16";
       } else {
         fail = true;
       }
@@ -384,7 +388,7 @@ void CodeGenTileLangNPUIR::PrintType(DataType t,
     }
     case 32: {
       if (t.is_scalar()) {
-          os << "i32";
+        os << "i32";
       } else {
         fail = true;
       }
@@ -395,7 +399,7 @@ void CodeGenTileLangNPUIR::PrintType(DataType t,
     }
     case 64: {
       if (t.is_scalar()) {
-          os << "i64";
+        os << "i64";
       }
       return;
     }
@@ -929,7 +933,7 @@ void CodeGenTileLangNPUIR::PipeFlagCodegen(const T &sync_op, std::ostream &os) {
 template <typename T>
 void CodeGenTileLangNPUIR::SyncBlockWaitCodegen(const T &sync_op, std::ostream& os) {
   std::string flag_id;
-  if (auto *int_imm = sync_op.flag_id.template as<tvm::tir::IntImmNode()) {
+  if (auto *int_imm = sync_op.flag_id.template as<tvm::tir::IntImmNode>()) {
     flag_id = std::to_string(int_imm->value);
   } else {
     flag_id = PrintID(sync_op.flag_id);
@@ -1008,14 +1012,14 @@ void CodeGenTileLangNPUIR::DotCodegen(const CallNode* op, std::ostream& os){
   this->stream << ", %" << type_info[b_buffer->name]->var_id;
   this->stream << ", %" << init_c_name;
   this->stream << ", %" << real_m_name;
-  this->stream << ", %" << real_k_name; 
+  this->stream << ", %" << real_k_name;
   this->stream << ", %" << real_n_name;
   this->stream << " : " << GetMemrefInfo(a_buffer->name);
   this->stream << ", " << GetMemrefInfo(b_buffer->name);
   this->stream << ", i1, index, index, index";
   this->stream << ")";
   this->stream << " outs(%" << type_info[c_buffer->name]->var_id;
-  this->stream << " : " << GetMemrefInfo(c_buffer->name); 
+  this->stream << " : " << GetMemrefInfo(c_buffer->name);
   this->stream << ")\n";
 }
 
@@ -1607,7 +1611,6 @@ Memref::Memref(String name, Buffer buffer, bool is_arg_in) {
 }
 
 } // namespace codegen
-
 
 } // namespace tvm
 
