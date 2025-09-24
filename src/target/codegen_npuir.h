@@ -34,7 +34,7 @@ public:
 
 class Scalar : public SSAType {
   public:
-  Scalar(String name, STring type) {
+  Scalar(String name, String type) {
     this->var_id = name;
     this->type_str = type;
   }
@@ -47,7 +47,7 @@ class Memref : public SSAType{
 
 public:
   Memref(String name, Buffer buffer, bool is_arg = false);
-  Memref(String name, Array<PrimExpr> shape_in, DataType dtype_in
+  Memref(String name, Array<PrimExpr> shape_in, DataType dtype_in,
     String address_space, bool var_offset_in,
     Array<PrimExpr> stride_in = Array<PrimExpr>(), int offset_in = 0,
     bool is_arg_in = false);
@@ -59,7 +59,7 @@ public:
   unsigned long offset = 0;
   bool var_offset = false;
   bool is_arg = false;
-  DataTypr dtype;
+  DataType dtype;
   String address_space = "gm";
 };
 
@@ -71,15 +71,15 @@ public:
   void PrintFuncPrefix(std::ostream &os) final;
   void PrintExtraAttrs(const PrimFunc &f);
   void VisitStmt_(const ForNode *op) final;
-  void VisitStmt_(const tir::IFThenElseNode *op) final;
+  void VisitStmt_(const tir::IfThenElseNode *op) final;
   void PrintStorageScope(const std::string &scope,
                          std::ostream &os) final;     // NOLINT(*)
   void PrintType(DataType t, std::ostream &os) final;     // NOLINT(*)
-  void PrintShape(ARRay<PrimExpr> shape, std::string delimiter,
-                  std::ostream &os); // Assed function
+  void PrintShape(Array<PrimExpr> shape, std::string delimiter,
+                  std::ostream &os); // Added function
   void PrintSSAAssign(const std::string& target, const std::string& src, DataType t) final;
 
-  //override visitor
+  //overload visitor
   void VisitExpr_(const MinNode* op, std::ostream& os) final;
   void VisitExpr_(const MaxNode* op, std::ostream& os) final;
   void VisitExpr_(const AddNode* op, std::ostream& os) final;
@@ -97,20 +97,20 @@ public:
   void VisitExpr_(const FloatImmNode* op, std::ostream& os) final;
   void VisitExpr_(const IntImmNode* op, std::ostream& os) final;
   void VisitExpr_(const CallNode* op, std::ostream& os) final;
-  void VisitExpr_(const FloorDivNode* op, std::ostream& os) final;
-  void VisitExpr_(const FloorModNode* op, std::ostream& os) final;
+  void VisitExpr_(const FloorDivNode *op, std::ostream &os) ;
+  void VisitExpr_(const FloorModNode *op, std::ostream &os) ;
   void VisitExpr_(const CastNode* op, std::ostream& os) final;
   void VisitExpr_(const SelectNode* op, std::ostream& os) final;
-  void VisitExpr_(const AllocateNode* op, std::ostream& os) final;
-  void VisitExpr_(const AttrStmtNode* op, std::ostream& os) final;
-  void VisitExpr_(const LetStmtNode* op, std::ostream& os) final;
+  void VisitStmt_(const AllocateNode* op) final;
+  void VisitStmt_(const AttrStmtNode* op) final;
+  void VisitStmt_(const LetStmtNode* op) final;
   
-  // Overide this as a work around for __grid_constant__ parameter
+  // Override this as a work around for __grid_constant__ parameter
   void AddFunction(const GlobalVar &gvar, const PrimFunc &f);
-  void AddFunctionForCoreType(const GlobalVal &gvar, const PrimFunc &f);
+  void AddFunctionForCoreType(const GlobalVar &gvar, const PrimFunc &f);
 private:
   template <typename T>
-  std::string ScalarConvertType(T *imm, DatType targetDtype);
+  std::string ScalarConvertType(T *imm, DataType targetDtype);
   void CallExternCodegen(const CallNode *op, std::ostream &os);
   void AscendCopyCodegen(const CallNode *op, std::ostream& os);
   void Nd2NzCodegen(const CallNode* op, std::ostream& os);
@@ -122,20 +122,20 @@ private:
   void DotCodegen(const CallNode *op, std::ostream& os);
   void BinaryVecOpCodegen(const CallNode *op, std::string opName, std::ostream& os);
   template <typename T>
-  void SyncBlockSetSetCodegen(const CallNode *op, std::ostream& os);
+  void SyncBlockSetCodegen(const  T &sync_op, std::ostream& os);
   template <typename T>
-  void SyncBlockWaitCodegen(const CallNode *op, std::ostream& os);
-  template <typename T>
+  void SyncBlockWaitCodegen(const  T &sync_op, std::ostream& os);
+  
   void BarrierCodegen(const CallNode *op, std::ostream& os);
   template <typename T>
-  void PipeFlagCodegen(const CallNode *op, std::ostream& os);
+  void PipeFlagCodegen(const T &sync_op, std::ostream& os);
   std::string PrintID(PrimExpr id);
   // Whether scope such as "__shared__" or "__constant__" is part of type.
-  bool IsScopePartOftype() const final {return false; }
+  bool IsScopePartOfType() const final {return false; }
 
-  Array<String> GenCovertIndex(Array<PrimExpr> exprs);
+  Array<String> GenConvertIndex(Array<PrimExpr> exprs);
   String GenSubviewFromRegion(const CallNode *region_node);
-  String GemSubviewFromRegion(Buffer buffer_data, Array<Range> range);
+  String GenSubviewFromRegion(Buffer buffer_data, Array<Range> range);
   void GenRecastFromArg(Buffer curr_buffer, String arg_name,
                         String &recast_inst);
   String GetMemrefInfo(String name);
@@ -144,7 +144,7 @@ private:
   std::map<String, SSAType *> type_info;
 
   // Whether global barrier is needed.
-  bool beed_global_barrier_{false};
+  bool need_global_barrier_{false};
   // Global barrier state
   std::string vid_global_barrier_state_;
   // Global barrier expected node.
@@ -162,10 +162,10 @@ private:
   // whether need math_constants.h
   bool need_math_constants_h_{false};
   // whether need cast_smem_ptr_to_int helper function
-  bool need_need cast_smem_ptr_to_int_{false};
+  bool need_cast_smem_ptr_to_int_{false};
 
   std::vector<std::string> inst_;
-  bool flush_out{false};
+  bool flush_out_{false};
 
   int core_num_{0};
 
@@ -180,10 +180,12 @@ private:
   // within during visiting tir ops.
   NPU_CORETYPE current_coretype;
 
-  tvm::t1::BufferMap vmap {tvm::t1::BufferMap()};
-} 
+  tvm::tl::BufferMap vmap {tvm::tl::BufferMap()};
+}; 
 } // namespace codegen
 } // namespace tvm
 
 
+
 #endif //TVM_TL_TARGET_CODEGEN_CUDA_H_
+
