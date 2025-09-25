@@ -12,15 +12,21 @@ import pybind11
 import torch
 import torch_npu
 import functools
-import sys
+from ..engine import lower
 
-import pickle
-from contextlib import contextmanager
 
 def _get_npucompiler_path() -> str:
-    # 设置编译器的环境变量
-    os.environ["BISHENG_INSTALL_PATH"] = "/host/zyz/tilelang-ascend/extra_tools"
-    return "/host/zyz/tilelang-ascend/extra_tools/bishengir-compile"
+    # Set the environment variables for the compiler
+    ascend_home = os.environ.get('ASCEND_HOME_PATH')
+    if ascend_home is None:
+        raise Exception("No cann environment detected")
+    bishengir = os.path.join(ascend_home, "bisheng_toolkit", "bishengir", "bin")
+    bisheng_install_path = os.environ.get("BISHENG_INSTALL_PATH")
+    if bisheng_install_path is not None:
+        return os.path.join(bisheng_install_path, "bishengir-compile")
+    else:
+        os.environ["ASCEND_HOME_PATH"] = bishengir
+        return os.path.join(bishengir, "bishengir-compile")
 
 def convert_sigtype_to_int(sigty: str):
     MAP_SIGTYPE_TO_INT = {
@@ -42,76 +48,8 @@ def convert_sigtype_to_int(sigty: str):
     }
     if sigty not in MAP_SIGTYPE_TO_INT:
         raise ValueError(f"Unsupported data type: {sigty}")
-    
+
     return MAP_SIGTYPE_TO_INT[sigty]
-
-def _get_bisheng_path() -> str:
-    bisheng_path = shutil.which("bisheng")
-    if bisheng_path is None:
-        npu_compiler_root = os.getenv("TRITON_NPU_COMPILER_PATH", "")
-        if npu_compiler_root is None:
-            raise EnvironmentError(
-                "Couldn't find executable bisheng or TRITON_NPU_COMPILER_PATH"
-            )
-            bisheng_path = os.path.join(npu_compiler_root, "ccec")
-    return bisheng_path
-
-def extract_device_print_code_from_cann():
-    ccec_compiler_bin_folder, _ = os.path.split(os.path.realpath(_get_bisheng_path()))
-    ccec_compiler_folder, _ = os.path.split(ccec_compiler_bin_folder)
-    clang_version = os.listdir(os.path.join(ccec_compiler_folder, "lib/clang/"))[0]
-    ccelib_path = os.path.join(ccec_compiler_folder, f"lib/clang/{clang_version}/include/ccelib")
-
-    def read_header(header_path):
-        with open(os.path.join(ccelib_path, header_path), 'r') as f:
-            code = f.read()
-
-        # remove all #include "..."
-        lines = code.splitlines()
-        purged_lines = []
-        for line in lines:
-            normalized_line = ' '.join(line.split())
-            if not normalized_line.startswith('#include "'):
-                purged_lines.append(line)
-        code = '\n'.join(purged_lines)
-
-        # remove [aicore] functions
-        aicore_positions = []
-        for m in re.finditer('\[aicore\]', code):
-            aicore_positions.append(m.start())
-
-        def find_aicore_function_span(src, pos):
-            for i in range(pos-1, -1, -1):
-                if src[i] == '}': # this relies on that all [aicore] functions come after normal funcitons
-                    left = i+1
-                    break
-            n = len(src)
-            brace_nest = 0
-            for j in range(pos, n, 1):
-                if src[j] == '{':
-                    brace_nest += 1
-                elif src[j] == '}':
-                    brace_nest -= 1
-                    if brace_nest == 0:
-                        right = j
-                        break
-            return left, right
-
-        new_code = ''
-        segment_start = 0
-        for pos in aicore_positions:
-            left, right = find_aicore_function_span(code, pos)
-            new_code += code[segment_start:left]
-            segment_start = right + 1
-        new_code += codep[segment_start:]
-
-        # remove __gm__ and rename macros
-        new_code = new_code.replace('__gm__', ' ')
-        new_code = new_code.replace('__CCELIB_RT_ERROR_NONE', 'RT_ERROR_NONE')
-        new_code = new_code.replace('__CCELIB_RT_MEMORY_HBM', 'RT_MEMORY_HBM')
-        new_code = new_code.replace('__CCELIB_RT_MEMCPY_HOST_TO_DEVICE', 'RT_MEMCPY_HOST_TO_DEVICE')
-        new_code = new_code.replace('__CCELIB_RT_MEMCPY_DEVICE_TO_HOST', 'RT_MEMCPY_DEVICE_TO_HOST')
-        return new_code
 
 def generate_npu_wrapper_src(constants, signature, workspace_size, mix_mode, lock_num, lock_ini_val):
     def _ty_to_cpp(ty):
@@ -136,16 +74,16 @@ def generate_npu_wrapper_src(constants, signature, workspace_size, mix_mode, loc
         if ty[0] == '*':
             return "PyObject*"
         return {
-            "i1": "int32_t",
-            "i32": "int32_t",
-            "i64": "int64_t",
-            "u32": "uint32_t",
-            "u64": "uint64_t",
-            "fp16": "float",
-            "bf16": "float",
-            "fp32": "float",
-            "f32": "float",
-            "fp64": "double",
+            'i1': 'int32_t',
+            'i32': 'int32_t',
+            'i64': 'int64_t',
+            'u32': 'uint32_t',
+            'u64': 'uint64_t',
+            'fp16': 'float',
+            'bf16': 'float',
+            'fp32': 'float',
+            'f32': 'float',
+            'fp64': 'double',
         }[ty]
 
     def _format_of(ty):
@@ -163,7 +101,7 @@ def generate_npu_wrapper_src(constants, signature, workspace_size, mix_mode, loc
     arg_decls = ', '.join(f"{_ty_to_cpp(ty)} arg{i}" for i, ty in signature.items())
     """
     args:
-        int gradX, gridY, gridZ;
+        int gridX, gridY, gridZ;
         rtStream_t stream;
         const void *function;
         PyObject* packed_metadata, *launch_metadata;
@@ -174,10 +112,8 @@ def generate_npu_wrapper_src(constants, signature, workspace_size, mix_mode, loc
 
     grid_info = {'X':'i32', 'Y':'i32', 'Z':'i32'}
 
-    enable_device_print = os.getenv(
-        "TRITON_DEVICE_PRINT", 'false').lower().in ('true', '1')
     enable_taskqueue = os.getenv(
-        "TRITON_ENABLE_TASKQUEUE", 'true').lower() in ('true', '1')
+        "TILELANG_ENABLE_TASKQUEUE", 'true').lower() in ('true', '1')
     # enable_auto_map_parallel_blocks = _is_auto_map_parallel_blocks_enabled()
     enable_auto_map_parallel_blocks = False
     # npu_utils = NPUUtils()
