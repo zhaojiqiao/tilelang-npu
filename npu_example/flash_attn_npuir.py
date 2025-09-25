@@ -208,7 +208,7 @@ def run_test(main_args):
                      main_args.block_k,
                      )
 
-    compiled_kernel = tilelang_npu.compile(func, target='npuir')
+    compiled_kernel = tilelang.compile(func, target='npuir')
 
     num_blocks = (main_args.seq_len - 1) // main_args.block_n + 1
     shape = [main_args.seq_len, main_args.dim]
@@ -242,4 +242,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_test(args)
+
 
