@@ -6,7 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import argparse
 
 import torch
-# torch.npu.set_device(0)
+torch.npu.set_device(6)
 
 import tilelang
 import tilelang.language as T
@@ -207,7 +207,7 @@ def run_test(main_args):
                      main_args.block_n,
                      main_args.block_k,
                      )
-    kernel = tilelang.engine.lower(func)
+    # kernel = tilelang.engine.lower(func)
     # print(kernel)
 
     tilelang_npu = compiler_npu()
@@ -243,4 +243,5 @@ def run_test(main_args):
 
 if __name__ == "__main__":
     args = parser.parse_args()
+
     run_test(args)
