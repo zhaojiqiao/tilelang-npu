@@ -42,9 +42,9 @@ def test_vec_add():
     func = vec_add(seq_len, seq_len)
     compiled_kernel = tilelang.compile(func, target="npuir")
 
-    v1 = torch.randn(size=[seq_len], dtype=eval("torch." + dtype))
-    v2 = torch.randn(size=[seq_len], dtype=eval("torch." + dtype))
-    v3 = torch.zero(size=[seq_len], dtype=eval("torch." + dtype))
+    v1 = torch.randn(size=[seq_len], dtype=eval("torch." + dtype)).npu()
+    v2 = torch.randn(size=[seq_len], dtype=eval("torch." + dtype)).npu()
+    v3 = torch.zeros(size=[seq_len], dtype=eval("torch." + dtype)).npu()
 
     y_ref = v1 + v2
     compiled_kernel(v1, v2, v3, seq_len)
