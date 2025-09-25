@@ -14,7 +14,7 @@ import torch_npu
 import functools
 from ..engine import lower
 
-os.environ["ACL_OP_INIT_MODE"] = 1
+os.environ["ACL_OP_INIT_MODE"] = "1"
 
 def _get_npucompiler_path() -> str:
     # 设置编译器的环境变量
