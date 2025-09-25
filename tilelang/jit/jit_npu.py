@@ -16,35 +16,35 @@ from ..engine import lower
 
 
 def _get_npucompiler_path() -> str:
-    # Set the environment variables for the compiler
+    # 设置编译器的环境变量
     ascend_home = os.environ.get('ASCEND_HOME_PATH')
     if ascend_home is None:
-        raise Exception("No cann environment detected")
+      raise Exception("No cann environment detected")
     bishengir = os.path.join(ascend_home, "bisheng_toolkit", "bishengir", "bin")
     bisheng_install_path = os.environ.get("BISHENG_INSTALL_PATH")
     if bisheng_install_path is not None:
-        return os.path.join(bisheng_install_path, "bishengir-compile")
+      return os.path.join(bisheng_install_path, "bishengir-compile")
     else:
-        os.environ["ASCEND_HOME_PATH"] = bishengir
-        return os.path.join(bishengir, "bishengir-compile")
+      os.environ["ASCEND_HOME_PATH"] = bishengir
+      return os.path.join(bishengir, "bishengir-compile")
 
 def convert_sigtype_to_int(sigty: str):
     MAP_SIGTYPE_TO_INT = {
         # Boolean
-        "i1": 12, # BOOL
+        "i1": 12,  # BOOL
         # Integer types
-        "i8": 2, # INT8
-        "i16": 6, # INT16
-        "i32": 3, # INT32
-        "i64": 9, # INT64
+        "i8": 2,  # INT8
+        "i16": 6,  # INT16
+        "i32": 3,  # INT32
+        "i64": 9,  # INT64
         # Unsigned integer types
-        "u32": 8, # UINT32
-        "u64": 10, # UINT64
+        "u32": 8,  # UINT32
+        "u64": 10,  # UINT64
         # Floating point types
-        "fp16": 1, # FLOAT16
-        "bf16": 27, # DT_BF16
-        "fp32": 0, # FLOAT
-        "fp64": 11, # DOUBLE
+        "fp16": 1,  # FLOAT16
+        "bf16": 27,  # DT_BF16
+        "fp32": 0,  # FLOAT
+        "fp64": 11,  # DOUBLE
     }
     if sigty not in MAP_SIGTYPE_TO_INT:
         raise ValueError(f"Unsupported data type: {sigty}")
@@ -103,25 +103,22 @@ def generate_npu_wrapper_src(constants, signature, workspace_size, mix_mode, loc
     args:
         int gridX, gridY, gridZ;
         rtStream_t stream;
-        const void *function;
+        const void *functon;
         PyObject* packed_metadata, *launch_metadata;
         PyObject* launch_enter_hook, *launch_exit_hook;
         *args_expand
     """
     format = "iiiKKOOOO" + ''.join([_format_of(_extracted_ty(ty)) for ty in signature.values()])
 
-    grid_info = {'X':'i32', 'Y':'i32', 'Z':'i32'}
+    grid_info = {'X': 'i32', 'Y': 'i32', 'Z': 'i32'}
 
     enable_taskqueue = os.getenv(
-        "TILELANG_ENABLE_TASKQUEUE", 'true').lower() in ('true', '1')
-    # enable_auto_map_parallel_blocks = _is_auto_map_parallel_blocks_enabled()
+        "TRITON_ENABLE_TASKQUEUE", 'true').lower() in ('true', '1')
     enable_auto_map_parallel_blocks = False
-    # npu_utils = NPUUtils()
-    # num_physical_blocks = npu_utils.get_aivector_core_num(
-    # ) if mix_mode == "aiv" else npu_utils.get_aicore_num()
-    num_physical_blocks = 48
+    npu_utils = NPUUtils()
+    num_physical_blocks = npu_utils.get_aivector_core_num() if mix_mode == "aiv" else npu_utils.get_aicore_num()
     task_type = "MSPROF_GE_TASK_TYPE_AIV" if mix_mode == "aiv" else "MSPROF_GE_TASK_TYPE_AI_CORE"
-    LINE_CHANGE_CHAR = chr(10) # it is \n
+    LINE_CHANGE_CHAR = chr(10)  # it is \n
 
     cpp_device_pointer = """
 typedef struct _DevicePtrInfo {
@@ -152,10 +149,10 @@ static inline DevicePtrInfo getPointer(PyObject *obj, int idx) {
       ptr_info.valid = false;
       return ptr_info;
     }
-    ptr_info.dev_ptr = reinterpret_cast<void *>(PyLong_AsUnsingedLongLong(ret));
-    if (!ptr_info.dev_ptr)
+    ptr_info.dev_ptr = reinterpret_cast<void *>(PyLong_AsUnsignedLongLong(ret));
+    if(!ptr_info.dev_ptr)
       return ptr_info;
-    Py_DECREF(ret); // Thanks ChatGPT!
+    Py_DECREF(ret);  // Thanks ChatGPT!
     return ptr_info;
   }
   PyErr_SetString(PyExc_TypeError, "Pointer argument must be either uint64 or have data_ptr method");
@@ -165,12 +162,12 @@ static inline DevicePtrInfo getPointer(PyObject *obj, int idx) {
 
     cpp_msprof_extern = """
 extern "C" {
-  typedef int (* callback)(unsigned int type, void* data, unsinged int len);
-  extern int MsprofReportApi(unsinged int agingFlag, const MsprofApi *api);
-  extern unsinged long int  MsprofSysCycleTime();
-  extern int MsprofRegisterCallback(unsinged int moduleId, callback handle);
-  static unsigned int __MsprofFlagL0 = 0;
-  static unsinged int __MsprofFlagL1 = 0;
+  typedef int (* callback)(unsigned int type, void* data, unsigned int len);
+  extern int MsprofReportApi(unsigned int  agingFlag, const MsprofApi *api);
+  extern unsigned long int  MsprofSysCycleTime();
+  extern int MsprofRegisterCallback(unsigned int moduleId, callback handle);
+  static unsigned int __MsprofFlagL0  = 0;
+  static unsigned int __MsprofFlagL1  = 0;
 
   int ProfCtrlHandle(unsigned int CtrlType, void* CtrlData, unsigned int DataLen) {
     if ((CtrlData == nullptr) || (DataLen == 0U)) {
@@ -192,7 +189,7 @@ extern "C" {
 """
 
     cpp_msprof_callback = """
-  MSprofRegisterCallback(8, ProfCtrlHandle);      // 8 - CCE defined in msprof headerfile slog.h
+  MsprofRegisterCallback(8, ProfCtrlHandle);      // 8 - CCE defined in msprof headerfile slog.h
 """
 
     cpp_msprof_call_before_launch = """
@@ -240,7 +237,7 @@ extern "C" {
       MsprofReportCompactInfo(0, static_cast<void *>(&nodeBasicInfo), sizeof(MsprofCompactInfo));
 
       // Report tensor info
-      int max_tensors_num = tensorShapes.size() < MSPROF_GE_TENSOR_DATA_NUM ? tensorShapes.size() : MSPROF_GE_TENMSOR_DATA_NUM;
+      int max_tensors_num = tensorShapes.size() < MSPROF_GE_TENSOR_DATA_NUM ? tensorShapes.size() : MSPROF_GE_TENSOR_DATA_NUM;
       MsprofAdditionalInfo tensorInfo;
       tensorInfo.level = MSPROF_REPORT_NODE_LEVEL;
       tensorInfo.type = MSPROF_REPORT_NODE_TENSOR_INFO_TYPE;
@@ -267,18 +264,18 @@ extern "C" {
           for (int j = 0; j < nDim; j++) {{
             profTensorData->tensorData[index].shape[j] = tensorShapes[i][j];
           }}
-          for (int j = nDim; j < MSPROF_GE_TENSOR_DATA_SHAPE_LEN; J++) {{
+          for (int j = nDim; j < MSPROF_GE_TENSOR_DATA_SHAPE_LEN; j++) {{
             profTensorData->tensorData[index].shape[j] = 0;
           }}
         }};
-        int tensorType = (i < tensorKinds.size()) ? tensorKinds[i] : 0;  // Default tensor type is input
+        int tensorType = (i < tensorKinds.size()) ? tensorKinds[i] : 0;  // DeFault tensor type is input
         if (tensorType == TENSOR_KIND_INPUT || tensorType == TENSOR_KIND_INPUT_OUTPUT) {{
-            fillTensorData(tensorCount, MSPROF_GE_TENSOR_TYPE_INPUT);
-            tensorCount++;
+          fillTensorData(tensorCount, MSPROF_GE_TENSOR_TYPE_INPUT);
+          tensorCount++;
         }}
         if ((tensorType == TENSOR_KIND_OUTPUT || tensorType == TENSOR_KIND_INPUT_OUTPUT) && tensorCount < MSPROF_GE_TENSOR_DATA_NUM){{
-            fillTensorData(tensorCount, MSPROF_GE_TENSOR_TYPE_OUTPUT);
-            tensorCount++;
+          fillTensorData(tensorCount, MSPROF_GE_TENSOR_TYPE_OUTPUT);
+          tensorCount++;
         }}
       }}
       profTensorData->tensorNum = tensorCount;
@@ -296,7 +293,6 @@ extern "C" {
 #include <Python.h>
 {'#include <torch_npu/csrc/framework/OpCommand.h>' if enable_taskqueue else ''}
 #include "experiment/runtime/runtime/rt.h"
-{extract_device_print_code_from_cann() if enable_device_print else ''}
 
 #define TENSOR_KIND_INPUT 0
 #define TENSOR_KIND_OUTPUT 1
@@ -313,18 +309,17 @@ static void _launch(const char* kernelName, const void* func, rtStream_t stream,
   std::string name = "";
   name.append(kernelName);
   {'auto launch_call = [=]()' if enable_taskqueue else ''} {{
-    uint32_t blockNum = gridX*gridY*gridZ;
+    uint32_t blockNum = gridX * gridY * gridZ;
     {'blockNum = std::min(blockNum, (uint32_t)' + str(num_physical_blocks) + ');' if enable_auto_map_parallel_blocks else ''}
-    {'cce::internel::DebugTunnelData *DTData = cce::internel::DebugTunnel::Open(blockNum);' if enable_device_print else ''}
     rtError_t ret;
     void *ffts_addr = NULL;
     uint32_t ffts_len; ret = rtGetC2cCtrlAddr((uint64_t*)&ffts_addr, &ffts_len);
     if (ret != RT_ERROR_NONE) {{
-        return {'ret' if enable_taskqueue else ''};
+      return {'ret' if enable_taskqueue else ''};
     }}
     // stub argument for workspace
     void *syncBlockLock = NULL;
-    void *workSpace_addr = NULL;
+    void *workspace_addr = NULL;
     uint16_t ModuleId = 0;
     {f'''
     uint64_t syncBlockLockSize = {lock_num} * sizeof(int64_t);
@@ -337,7 +332,7 @@ static void _launch(const char* kernelName, const void* func, rtStream_t stream,
     ret = rtMemcpy(syncBlockLock, syncBlockLockSize, reinterpret_cast<void *>(lockInitData.data()),
                    syncBlockLockSize, RT_MEMCPY_HOST_TO_DEVICE);
     if (ret != RT_ERROR_NONE) {{
-        return {'ret' if enable_taskqueue else ''};
+      return {'ret' if enable_taskqueue else ''};
     }}
     ''' if lock_num > 0 else ''}
     {f'''
@@ -345,7 +340,7 @@ static void _launch(const char* kernelName, const void* func, rtStream_t stream,
     ret = rtMalloc(reinterpret_cast<void **>(&workspace_addr),
                    totalWorkSpaceSize, RT_MEMORY_HBM, ModuleId);
     if (ret != RT_ERROR_NONE) {{
-        return {'ret' if enable_taskqueue else ''};
+      return {'ret' if enable_taskqueue else ''};
     }}
     ''' if workspace_size > 0 else ''}
     struct __attribute__((packed)) {{
@@ -354,32 +349,28 @@ static void _launch(const char* kernelName, const void* func, rtStream_t stream,
       void* workspace_addr __attribute__((aligned(8)));
       {' '.join(f'{_ty_to_cpp(ty)} arg{i} __attribute__((aligned({4 if ty[0] != "*" and ty[-2:] != "64" else 8})));' for i, ty in signature.items() if i not in constants)}
       {' '.join(f'{_ty_to_cpp(ty)} grid{mark} __attribute__((aligned(4)));' for mark, ty in grid_info.items())}
-      {'void* DTData __attribute__((aligned(8)));' if enable_device_print else ''}
     }} args = {{
-        static_cast<void*>(ffts_addr),
-        static_cast<void*>(syncBlockLock),
-        static_cast<void*>(workspace_addr),
-        {', '.join(f'static_cast<{_ty_to_cpp(ty)}>(arg{i})' for i, ty in signature.items() if i not in constants)},
-        {', '.join(f'static_cast<{_ty_to_cpp(ty)}>(grid{mark})' for mark, ty in grid_info.items())}
-        {', static_cast<void*>(DTData)' if enable_device_print else ''}
+      static_cast<void*>(ffts_addr),
+      static_cast<void*>(syncBlockLock),
+      static_cast<void*>(workspace_addr),
+      {', '.join(f'static_cast<{_ty_to_cpp(ty)}>(arg{i})' for i, ty in signature.items() if i not in constants)},
+      {', '.join(f'static_cast<{_ty_to_cpp(ty)}>(grid{mark})' for mark, ty in grid_info.items())}
     }};
     {cpp_msprof_call_before_launch}
-    ret = rtKernelLaunch(func, blockNum, sttaic_cast<void*>(&args), sizeof(args), NULL, stream);
-    {'void *&stream_ref = const_cast<void*&>(stream);' if enable_device_print else ''}
-    {'cce::internel::DebugTunnel::Close(DTData, stream_ref);' if enable_device_print else ''}
+    ret = rtKernelLaunch(func, blockNum, static_cast<void*>(&args), sizeof(args), NULL, stream);
     {cpp_msprof_call_after_launch}
     {'return ret;' if enable_taskqueue else ''}
-    }};
-    {'at_npu::native::OpCommand cmd; cmd.Name(name.c_str()).SetCustomHandler(launch_call).Run();' if enable_taskqueue else ''}
-    return ;
+   }};
+   {'at_npu::native::OpCommand::RunOpApi(name.c_str(), launch_call);' if enable_taskqueue else ''}
+  return;
 }}
 
 // Extract tensor shape from PyObject
-static std::vector<int64_t> _get_tensor_type(PyObject *tensor) {{
+static std::vector<int64_t> _get_tensor_shape(PyObject *tensor) {{
   std::vector<int64_t> shape;
 
   // Early return if tensor is None or null
-  if (!tensor || tensor==Py_None) {{
+  if (!tensor || tensor == Py_None) {{
     return shape;
   }}
 
@@ -392,7 +383,7 @@ static std::vector<int64_t> _get_tensor_type(PyObject *tensor) {{
   PyObject* seq = PySequence_Fast(size_result, "Expected a sequence from tensor.size()");
   if (seq) {{
     Py_ssize_t len = PySequence_Fast_GET_SIZE(seq);
-    PyObject* items = PySequence_Fast_ITEMS(seq);
+    PyObject** items = PySequence_Fast_ITEMS(seq);
     for (Py_ssize_t i = 0; i < len; ++i) {{
       PyObject* dim = items[i];
       if (PyLong_Check(dim)) {{
@@ -428,13 +419,13 @@ static PyObject* launch(PyObject* self, PyObject* args) {{
   if (__MsprofFlagL1)
   {{
     {
-      LINE_CHANGE_CHAR.JOIN(
+      LINE_CHANGE_CHAR.join(
         f"{{ auto tmp = _get_tensor_shape(_arg{i}); if (!tmp.empty()) tensorShapes.push_back(tmp); }}"
         for i, ty in signature.items() if ty[0] == "*"
       )
     }
   }}
-  
+
   if (launch_enter_hook != Py_None && !PyObject_CallObject(launch_enter_hook, args)) {{
     return NULL;
   }}
@@ -647,26 +638,26 @@ PyMODINIT_FUNC PyInit_npu_utils(void) {
 
 def read_binary_file(file_path, mode='rb', chunk_size=None, return_type='bytes'):
     """
-    读取二进制文件的函数
-    
-    参数:
-        file_path (str): 要读取的文件路径
-        mode (str): 文件打开模式，默认为'rb'（二进制读取）
-        chunk_size (int): 如果指定，则以指定大小的块读取文件；否则读取整个文件
-        return_type (str): 返回数据类型，可以是'bytes'或'bytearray'
-    
-    返回:
-        根据return_type参数返回bytes或bytearray对象
-        如果指定了chunk_size，则返回一个生成器，逐块产生数据
-    
-    异常:
-        FileNotFoundError: 当文件不存在时
-        IOError: 当读取文件发生错误时
+    Function to read a binary file
+
+    Parameters:
+        file_path (str): Path to the file to be read
+        mode (str): File opening mode, defaults to 'rb' (read binary)
+        chunk_size (int): If specified, reads the file in chunks of the given size; otherwise reads the entire file
+        return_type (str): Return data type, can be 'bytes' or 'bytearray'
+
+    Returns:
+        Returns bytes or bytearray object according to return_type parameter
+        If chunk_size is specified, returns a generator that yields data chunk by chunk
+
+    Raises:
+        FileNotFoundError: When the file does not exist
+        IOError: When an error occurs during file reading
     """
     try:
         with open(file_path, mode) as file:
             if chunk_size:
-                # 分块读取文件
+                # Read file in chunks 
                 def chunk_reader():
                     while True:
                         chunk = file.read(chunk_size)
@@ -678,16 +669,16 @@ def read_binary_file(file_path, mode='rb', chunk_size=None, return_type='bytes')
                             yield chunk
                 return chunk_reader()
             else:
-                # 一次性读取整个文件
+                # Read the entire file in one go 
                 data = file.read()
                 if return_type == 'bytearray':
                     return bytearray(data)
                 else:
                     return data
     except FileNotFoundError:
-        raise FileNotFoundError(f"文件未找到: {file_path}")
+        raise FileNotFoundError(f"File not found: {file_path}")
     except IOError as e:
-        raise IOError(f"读取文件时发生错误: {e}")
+        raise IOError(f"Error occurred while reading the file: {e}")
 
 class NPUUtils(object):
     def __new__(cls):
@@ -696,8 +687,6 @@ class NPUUtils(object):
         return cls.instance
 
     def __init__(self):
-        # cache_path = "/host/gxy/tilelang-ascend/npu_example/mlir_files/minicv_jit/npu_utils.so"
-        # 3 important path
         cache_path = "npu_utils.so"
         import importlib.util
         spec = importlib.util.spec_from_file_location("npu_utils", cache_path)
@@ -705,26 +694,21 @@ class NPUUtils(object):
         spec.loader.exec_module(mod)
         self.npu_utils_mod = mod
 
-    def load_binary(self, name, kernel, shared, device):
-        fnname, mix_mode = name.split()
-        return self.npu_utils_mod.load_kernel_binary(fnname, kernel, shared, device, mix_mode)
+    def load_binary(self, name, kernel, shared, device, mix_mode):
+        return self.npu_utils_mod.load_kernel_binary(name, kernel, shared, device, mix_mode)
 
     @functools.lru_cache()
     def get_device_properties(self, device):
-        # temperoarily added "max_shared_mem" properties to avoid tilelang-compiler complain
-        # fetch available memory at runtime
         num_aic = self.get_aicore_num()
         num_aiv = num_aic * 2
-        return {"max_shared_mem": 1, "num_aicore": num_aic, "num_vectorcore": num_aiv}
+        return {"num_aicore": num_aic, "num_vectorcore": num_aiv}
 
     @functools.lru_cache()
     def get_arch(self):
-        # temporarily return empty arch descriptor
         return self.npu_utils_mod.get_arch()
 
     @functools.lru_cache()
     def get_aicore_num(self):
-        # temporarily return empty arch descriptor
         return self.npu_utils_mod.get_aicore_num()
 
     @functools.lru_cache()
@@ -735,18 +719,19 @@ class JitKernel_NPU:
     def __init__(self, metadata : dict) -> None:
         # 1 launch path
         self.so_launcher_path = f"{metadata['kernel_name']}.so"
-        self.utils_name = f"{metadata['name']} aiv"
+        self.utils_name = f"{metadata['name']}"
         # 2 kernel path
-        self.utils_kernel_src = read_binary_file(f"{metadata['kernel_name']}.o")
-        self.utils_shared = 1
+        self.utils_kernel_src = metadata['kernel_src']
+        self.utils_shared = metadata['shared'] # 保留接口，暂不生效
+        self.mix_mode = metadata['mix_mode']
         self.utils_device = torch.npu.current_device()
         self.launch_stream = torch.npu.current_stream(torch.npu.current_device()).npu_stream
-        self.launch_grid = [32, 1, 1]
+        self.launch_grid = metadata['grid']
         self.launch_packedMetadata = {"kernel_name":f"{metadata['name']}", "tensor_kinds":metadata['tensor_kinds']}
-        self.launch_metadata = {}  # Python对象
-        self.launch_enter_hook = None  # Python对象
-        self.launch_exit_hook = None  # Python对象
-        # self._launch()
+        self.launch_metadata = {}
+        self.launch_enter_hook = None
+        self.launch_exit_hook = None
+        self._launch()
 
     def _launch(self) :
         import importlib.util
@@ -756,10 +741,9 @@ class JitKernel_NPU:
         self.launch_npu = getattr(mod, "launch")
 
     def __call__(self, *args: Any) -> Any:
-        self._launch()
         npu_utils = NPUUtils()
         t_module, t_function, t_n_regs, t_n_spills = npu_utils.load_binary(
-            self.utils_name, self.utils_kernel_src, self.utils_shared, self.utils_device)
+            self.utils_name, self.utils_kernel_src, self.utils_shared, self.utils_device, self.mix_mode)
         return self.launch_npu(self.launch_grid[0], self.launch_grid[1], self.launch_grid[2],
          self.launch_stream, t_function, self.launch_packedMetadata, 
          self.launch_metadata, self.launch_enter_hook, self.launch_exit_hook,
@@ -769,26 +753,34 @@ class compiler_npu:
     def __init__(self) -> None:
         pass
 
-    def compile(self, mlir_path : str) -> JitKernel_NPU:
-        self.metadata = {"shared" : 1}
+    def compile(self, mod : str) -> JitKernel_NPU:
+        self.metadata = {}
+        self.mod = mod
+        # get grid message
+        self._parse_grid()
+        mlir_path = lower(mod)
         if mlir_path.endswith(".mlir") :
             self.mlir_content = self._read_mlir_file(mlir_path)
         else:
             self.mlir_content = mlir_path
         self.constants = {}
+        # get signature information
         self.signature = self._parse_signature()
         self.workspace_size = -1
-        self.mix_mode = "aiv"
         self.lock_num = -1
         self.lock_ini_val = 0
-        self._parse_linalg_metadata()
-        self._linalg_to_bin_enable_npu_compile()
-        self.wrapper_src = generate_npu_wrapper_src(self.constants, 
-            self.signature, self.workspace_size, self.mix_mode, self.lock_num, self.lock_ini_val)
-        self.so_launcher_path = self.make_npu_launcher_stub(self.metadata['kernel_name'], self.wrapper_src)
+        self._parse_npuir_metadata()
+        self.metadata['kernel_src'] = self._npuir_to_bin_enable_npu_compile()
         self.wrapper_utiles = generate_npu_utils_src()
         self.so_utils_path = self.make_npu_launcher_stub("npu_utils", self.wrapper_utiles)
+        self.wrapper_src = generate_npu_wrapper_src(self.constants, 
+            self.signature, self.workspace_size, self.metadata['mix_mode'], self.lock_num, self.lock_ini_val)
+        self.so_launcher_path = self.make_npu_launcher_stub(self.metadata['kernel_name'], self.wrapper_src)
         return JitKernel_NPU(metadata=self.metadata)
+
+    def _parse_grid(self):
+      match = re.search(r'T\.launch_thread\("blockIdx\.x",\s*(\d+)\)', str(str(self.mod)))
+      self.metadata['grid'] = [int(match.group(1)), 1, 1]
 
     def _read_mlir_file(self, file_path) -> str:
         """
@@ -799,37 +791,30 @@ class compiler_npu:
                 content = file.read()
             return content
         except FileNotFoundError:
-            print(f"错误: 文件 '{file_path}' 不存在")
+            print(f"Error: File '{file_path}' does not exist")
             return None
         except Exception as e:
-            print(f"读取文件时发生错误: {e}")
+            print(f"Error occurred while reading the file: {e}")
             return None
     
-    def _parse_linalg_metadata(self) -> None:
+    def _parse_npuir_metadata(self) -> None:
         """
-        Parse Linalg IR to extract metadata required for NPU compilation.
+        Parse NPU IR to extract metadata required for NPU compilation.
         Extracts and updates the following fields in metadata:
           - mix_mode
           - kernel_name
-          - tensor_kinds
+          - tensor_kinds (currently hardcoded)
           - shared (currently hardcoded)
           - name (combined kernel_name and mix_mode)
 
         Additionally, removes the mix_mode attribute from the IR.
         """
         # --- Regular expressions and examples ---
-
-        # Example: mix_mode = "aiv" -> aiv
-        MIX_MODE_REGEX = r'mix_mode\s*=\s*"([^"]+)"'
-
         # Example: func.func @gather_sorted_kernel(%arg0: ...) -> gather_sorted_kernel
         KERNEL_NAME_REGEX = r"func\.func\s+@(\w+)"
 
-        # Example: %arg1: memref<?xf32> {tt.divisibility = 16 : i32, tt.tensor_kind = 0 : i32} -> ('1', '0')
-        TENSOR_KIND_REGEX = r'%arg(\d+):[^,)]*?\{[^}]*?tt\.tensor_kind\s*=\s*([^:\s}]+)\s*:[^}]*?\}'
-
-        # Example removal:   ', mix_mode = "aiv"' → ''
-        REMOVE_MIX_MODE_REGEX = r', mix_mode\s*=\s*"[^"]*"'
+        # Example：hivm.module_core_type<MIX> -> MIX
+        MIX_MODE_REGEX = r'#hivm\.module_core_type<([^>]+)>'
 
         # Note: Compiled Kernel requires to estimate size of shared memory to occupy
         # Currently, NPU backend does not limit on shared memory
@@ -842,11 +827,8 @@ class compiler_npu:
             self.metadata['name'] = kernel_name.split('_')[0]
         else:
             self.metadata['name'] = kernel_name
-
-        # Parse all tensor kinds from arguments
-        self.metadata['tensor_kinds'] = [int(kind) for _, kind in re.findall(TENSOR_KIND_REGEX, self.mlir_content)]
-        # remove the mix_mode attribute
-        self.mlir_content = re.sub(REMOVE_MIX_MODE_REGEX, "", self.mlir_content)
+        self.metadata['tensor_kinds'] = []
+        self.metadata['mix_mode'] = re.search(MIX_MODE_REGEX, self.mlir_content).group(1).lower()
 
     def _parse_signature(self) -> dict:
         """
@@ -911,193 +893,117 @@ class compiler_npu:
                     break
 
             if found_type:
-                # 特殊处理：f16应映射为fp16
+                # 特殊处理：f16应映射为fp16，f32映射为fp32
                 if found_type == 'f16':
                     found_type = 'fp16'
                 elif found_type == '*f16':
                     found_type = '*fp16'
+                elif found_type == 'f32':
+                    found_type = 'fp32'
+                elif found_type == '*f32':
+                    found_type = '*fp32'
 
                 result[index] = found_type
                 index += 1
 
         return result
 
-    def _linalg_to_bin_enable_npu_compile(self):
+    def _npuir_to_bin_enable_npu_compile(self):
         linalg = self.mlir_content
         metadata = self.metadata
         with tempfile.TemporaryDirectory() as tmpdir:
-            ttadapter_path = os.path.join(tmpdir, "kernel.ttadapter.mlir")
+            ttadapter_path = os.path.join(tmpdir, "kernel.npuir")
             Path(ttadapter_path).write_text(linalg)
             bin_file = os.path.join(tmpdir, "kernel")
-            if self._check_bishengir_api_change():
-                bin_file_with_ext = "kernel.o"
-            else:
-                bin_file_with_ext = "kernel_reloc.o"
-            if self._check_bishengir_is_regbased():
-                bishengir_hivm_opt = "--reg-based=true"
-            else:
-                bishengir_hivm_opt = "--enable-hivm-compile=true"
-            bin_path = os.path.join(tmpdir, bin_file_with_ext)
-            callback_path = os.path.join(tmpdir, "libkernel.so")
-            _compile_option_list = []
+            bin_path = os.path.join(tmpdir, "kernel.o")
 
-            if self._is_auto_map_parallel_blocks_enabled():
-                _compile_option_list += ["--enable-auto-blockify-loop"]
             npu_compiler_path = _get_npucompiler_path()
-            if npu_compiler_path.endswith("bishengir-compile")
-                _compile_option_list += [
-                    "--enable-hfusion-compile=true",
-                    bishengir_hivm_opt,
-                    "--enable-triton-kernel-compile=true",
-                ]    
-            _compile_option_list = ["-enable-auto-multi-buffer=true", "-enable-triton-kernel-compile=true"
-                                    "-enable-hivm-compile=false ","-enable-hivm-memref-compile=true"]
-            com_list = (
+            # TileLang Ascend JIT Runtime now follows Triton JIT style.
+            # bishengir-compile --enable-triton-kernel-compile=true make sure the way.
+            _compile_option_list = ["--enable-auto-multi-buffer=true", "--enable-triton-kernel-compile=true",
+                                    "--enable-hivm-compile=false", "--enable-hivm-memref-compile=true"]
+            cmd_list = (
                 [npu_compiler_path, ttadapter_path]
                 + _compile_option_list
                 + ["-o", bin_file]
             )
-            ret = subprocess.run(com_list, capture_output=True, check=True)
-
-            if os.path.exists(bin_path):
-                #如果当前目录已存在npu.o,则删除
-                kernel_name = f"{self.metadata['kernel_name']}.o"
-                current_dir_npu_o = os.path.join(os.getcwd(), kernel_name)
-                if os.path.exists(current_dir_npu_o):
-                    os.remove(current_dir_npu_o)
-                # 复制新生成的.o文件到当前目录
-                shutil.copy2(bin_path, current_dir_npu_o)
-
-            return Path(bin_path).reda_bytes()
-
-    def _check_bishenggir_is_regbased(self) -> bool:
-        bishengir_path = _get_npucompiler_path()
-        try:
-            result = subprocess.run(
-                f"{bishengir_path} --help | grep 'reg-based",
-                shell = True,
-                stdout=subprocess.PIPE,
-                STDERR=subprocess.PIPE,
-                text=True,
-            )
-            if result.returncode == 0;
-                #bishengir-compile is regbased version
-                return True
-            else:
-                #bishenggir-compile is membased version
-                return False
-        except Exception as e:
-            print(f"ERROR:{e}")
-            return False
-
-    def _check_bishengir_api_change(self) -> bool:
-        bishenggir_path = _get_npucompiler_path()
-        try:
-            result = subprocess.run(
-                f"{bishengir_path} --help | grep 'limit-auto-muti-buffer-buffer'"
-                shell=True
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            if result.returncode == 0;
-                #bishengir-compile is newer version
-                return True
-            else:
-                #bishenggir-compile is older version
-                return False
-        except Exception as e:
-            print(f"ERROR:{e}")
-            return False
-
-    def _enable_unpublised_feature(self) -> bool:
-        return os.getenv("ENABLE_UNPUBLISHED_FEATURE", "false").lower() in ("true", "1")
-
-    def _is_auto_map_parallel_blocks_enbled(self) -> bool
-        if not self._enable_unpublised_feature():
-            return False
-        return os.getenv("TRITON_ALL_BLOCKS_PARALLEL", "false").lower() in ("true", "1")
-
-    def make_npu_launcher_stub(self, name : str, source : sttr, debug=False):
+            ret = subprocess.run(cmd_list, capture_output=True, check=True)
+            return Path(bin_path).read_bytes()
+    
+    def make_npu_launcher_stub(self, name : str, source : str ,debug=False):
         """
-        Generate the lanucher stub to launch the kernel
+        Generate the launcher stub to launch the kernel
         """
         with tempfile.TemporaryDirectory() as tmpdir:
             src_path = os.path.join(tmpdir, f"{name}.cxx")
-
             with open(src_path, "w") as f:
                 f.write(source)
-
-            enable_taskqueue = os.getenv("TRITON_ENABLE_TASKQUEUE", "true").lower() in ('true', '1')
-            if (enable_taskqueue):
-                kernel_launcher_type = "torch"
-            else
-                kernel_launcher_type = NONE
-            so = self._build_npu_ext(name, src_path, tmpdir, kernel_launcher=kernel_launcher_type)
-
+            so = self._build_npu_ext(name, src_path, tmpdir, kernel_launcher="torch")
+            return so
+    
     def _get_ascend_path(self):
         return os.environ.get("ASCEND_HOME_PATH")
 
     def _check_cxx11_abi(self):
         import torch
-        return 1 if torch._C._GLIBCXX_USE_CXX11_ABI else 0
+        return 1 if torch._C._GLIBCXX_USE_CXX11_ABI else 0    
 
     def _build_npu_ext(self, obj_name: str, src_path, src_dir, *, kernel_launcher=None) -> str:
         so_path = f"{obj_name}.so"
         cxx = os.environ.get("CC")
         if cxx is None:
-            clangxx = shutil.with("clang++")
+            clangxx = shutil.which("clang++")
             gxx = shutil.which("g++")
-            cxx = changexx if clangxx is not None else gxx
+            cxx = clangxx if clangxx is not None else gxx
             if cxx is None:
                 raise RuntimeError("Failed to find C++ compiler")
-            cc_cmd = [cxx, src_path]
-            # disable all warnings
-            cc_cmd += [f"-w"]
-            # find the python library
-            if hasattr(sysconfig, "get_default_scheme")
-                scheme = sysconfig.get_default_scheme()
-            else:
-                scheme = sysconfig._get_default_scheme()
-            #'posix_local' is a custom scheme on Debian. However, starting Python 3.10, the default install 
-            # path changes to include 'local'. This change is required to use triton with system-wide python.
-            if scheme == "posix_local"
-                scheme = "posix_prefix"
-            py_include_dir = sysconfig.get_paths(scheme=scheme)["include"]
-            cc_cmd += [f"-I{py_include_dir}"]
-            # device_print.h
-            cc_cmd += [f"-I{os.path.dirname(os.path.realpath(__file__))}"]
-            # find the ascend library
-            asc_path = self._get_ascend_path()
+        cc_cmd = [cxx, src_path]
+        # disable all warnings
+        cc_cmd += [f"-w"]
+        # find the python library
+        if hasattr(sysconfig, "get_default_scheme"):
+            scheme = sysconfig.get_default_scheme()
+        else:
+            scheme = sysconfig._get_default_scheme()
+        # 'posix_local' is a custom scheme on Debian. However, starting Python 3.10, the default install
+        # path changes to include 'local'. This change is required to use triton with system-wide python.
+        if scheme == "posix_local":
+            scheme = "posix_prefix"
+        py_include_dir = sysconfig.get_paths(scheme=scheme)["include"]
+        cc_cmd += [f"-I{py_include_dir}"]
+        # device_print.h
+        cc_cmd += [f"-I{os.path.dirname(os.path.realpath(__file__))}"]
+        # find the ascend library
+        asc_path = self._get_ascend_path()
 
+        cc_cmd += [
+            f"-I{os.path.join(asc_path, 'include')}",
+            f"-I{os.path.join(asc_path, 'include/experiment')}",
+            f"-I{os.path.join(asc_path, 'include/experiment/msprof')}",
+            f"-I{pybind11.get_include()}",
+            f"-L{os.path.join(asc_path, 'lib64')}",
+            "-lruntime",
+            "-lascendcl",
+        ]
+
+        if kernel_launcher == "torch":
+
+            torch_path = os.path.dirname(os.path.realpath(torch.__file__))
+            torch_npu_path = os.path.dirname(os.path.realpath(torch_npu.__file__))
+            use_cxx11_abi = self._check_cxx11_abi()
             cc_cmd += [
-                f"-I{os.path.join(asc_path, 'include')}",
-                f"-I{os.path.join(asc_path, 'include/experiment')}",
-                f"-I{os.path.join(asc_path, 'include/experiment/msprof')}",
-                f"-I{pybind11.get_include()}",
-                f"-I{os.path.join(asc_path, 'lib64')}",
-                "-lruntime",
-                "-lascendcl"
+                f"-I{os.path.join(torch_path, 'include')}",
+                f"-I{os.path.join(torch_npu_path, 'include')}",
+                f"-L{os.path.join(torch_npu_path, 'lib')}",
+                "-ltorch_npu",
+                f"-D_GLIBCXX_USE_CXX11_ABI={use_cxx11_abi}",
             ]
 
-            if kernel_launcher == "torch"
+        cc_cmd += ["-std=c++17", "-shared", "-fPIC", "-o", so_path]
 
-                torch_path = os.path.dirname(os.path.realpath(torch.__file__))
-                torch_path_path = os.path.dirname(os.path.realpath(torch_npu.__file__))
-                use_cxx11_abi = self._check_cxx11_abi()
-                cc_cmd += [
-                    f"-I{os.path.join(torch_path, 'include')}",
-                    f"-I{os.path.join(torch_npu_path, 'include')}",
-                    f"-I{os.path.join(torch_npu_path, 'lib')}",
-                    "-ltorch_npu",
-                    f"-D_GLIBCXX_USE_CXX11_ABI={use_cxx11_abi}"
-                ]
+        ret = subprocess.check_call(cc_cmd)
 
-            cc_cmd += ["_std=c++17", "-shared", "-fPIC", "-o". so_path]
-
-            ret = subprocess.check_call(cc_cmd)
-
-            if ret == 0:
-                return so_path
-            else
-                raise RuntimeError("Failed to compile " + src_path)
+        if ret == 0:
+            return so_path
+        else:
+            raise RuntimeError("Failed to compile " + src_path)
