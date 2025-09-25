@@ -920,7 +920,7 @@ class compiler_npu:
             # TileLang Ascend JIT Runtime now follows Triton JIT style.
             # bishengir-compile --enable-triton-kernel-compile=true make sure the way.
             _compile_option_list = ["--enable-auto-multi-buffer=true", "--enable-triton-kernel-compile=true",
-                                    "--enable-hivm-compile=false", "--enable-hivm-memref-compile=true"]
+                                    "--enable-hivm-compile=true", "--disable-hivm-tensor-compile=true"]
             cmd_list = (
                 [npu_compiler_path, ttadapter_path]
                 + _compile_option_list
