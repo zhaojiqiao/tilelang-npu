@@ -24,7 +24,7 @@ def _get_npucompiler_path() -> str:
     if bisheng_install_path is not None:
       return os.path.join(bisheng_install_path, "bishengir-compile")
     else:
-      os.environ["ASCEND_HOME_PATH"] = bishengir
+      os.environ["BISHENG_INSTALL_PATH"] = bishengir
       return os.path.join(bishengir, "bishengir-compile")
 
 def convert_sigtype_to_int(sigty: str):
