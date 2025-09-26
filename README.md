@@ -12,7 +12,7 @@
 在 TileLang 生态中，我们构建了面向 Ascend 的 NPU 中间表示（NPUIR）基础设施，使其能够无缝融入基于 MLIR 的开源 AI 编译器生态。这一举措不仅提升了编译栈的开放性与可扩展性，也为开发者提供了更灵活、高效的算子开发路径。 -->
 TileLang for Ascend is a deep adaptation and extension of Tile Language (tile-lang) tailored for the Ascend AI processor. As a concise and efficient domain-specific language, TileLang natively supports writing high-performance compute kernels—such as GEMM, Dequantized GEMM, FlashAttention, and LinearAttention—using Python-like syntax, and leverages TVM and MLIR to build a robust compiler infrastructure.
 
-Within the TileLang ecosystem, we have developed an NPU Intermediate Representation (NPUIR) infrastructure specifically for Ascend, enabling seamless integration into the open-source AI compiler ecosystem based on MLIR. This effort not only enhances the openness and extensibility of the compiler stack but also provides developers with a more flexible and efficient pathway for custom operator development.
+Within the TileLang ecosystem, we have developed an NPU Intermediate Representation (NPUIR) infrastructure specifically for Ascend, enabling seamless integration into the open-source AI compiler ecosystem based on MLIR. This effort not only enhances the openness and extensibility of the compiler stack but also provides developers with a more flexible and efficient pathway for custom operator development，The compiler backend supports two technical routes: MLIR and Ascend C++.
 
 <!-- ascend NPU IR技术路线 for tilelang -->
 
