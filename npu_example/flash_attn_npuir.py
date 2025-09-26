@@ -34,7 +34,7 @@ parser.add_argument("--block_k", type=int, default=128,
 
 
 def flashattn(dtype, accum_dtype, seq_len, dim, block_m, block_n, block_k):
-    scale = (1.0 / dim) ** 0.5 * 1.44269504  # log2(e)
+    scale = (1.0 / dim) ** 0.5
     shape = [seq_len, dim]
     shape2 = [seq_len, seq_len]
 
@@ -226,7 +226,7 @@ def run_test(main_args):
     w2 = generate_tensor(shape2, main_args.dtype, clear=True).npu()
     w3 = generate_tensor(shape3, main_args.dtype, clear=True).npu()
 
-    scale = (1.0 / main_args.dim) ** 0.5 * 1.44269504  # log2(e)
+    scale = (1.0 / main_args.dim) ** 0.5
     ref_output = torch.nn.functional.softmax((q @ k.T).to(torch.float32) * scale, dim=-1).to(torch.float16) @ v
 
     compiled_kernel(q, k, v, o, w1, w2, w3)
@@ -243,6 +243,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_test(args)
+
 
 
 
