@@ -139,7 +139,7 @@ export ACL_OP_INIT_MODE=1
 
   Note: If you require a new compiler installation package, please contact the community administrators:  
 **zhaojiqiao@huawei.com**, **yangsichan@huawei.com**  
-Tel: +86 159 0126 9653
+
 
    
 
