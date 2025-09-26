@@ -137,8 +137,8 @@ def flashattn(dtype, accum_dtype, seq_len, dim, block_m, block_n, block_k):
                 bx = bx + subblock_M
 
                 tail_size_m_mod2 = tail_size_m % 2
-                if tail_size_m_mod2 != 0:
-                    real_m = real_m - subid
+                incomplete_block_m = tail_size_m_mod2 * subid
+                real_m = real_m - incomplete_block_m
 
                 for i in T.serial(T.ceildiv(seq_len, block_n)):
                     tail_size_n = i * block_n
@@ -242,5 +242,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_test(args)
+
 
 
