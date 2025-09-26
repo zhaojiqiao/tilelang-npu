@@ -1,3 +1,4 @@
+# Copyright (c) Huawei Technologies Co., Ltd. 2025.
 import sys
 import os
 
@@ -242,6 +243,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     run_test(args)
+
 
 
 
