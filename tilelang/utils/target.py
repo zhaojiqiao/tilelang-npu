@@ -70,7 +70,7 @@ def determine_target(target: Union[str, Target, Literal["auto"]] = "auto",
         # Check for CUDA and HIP availability
         is_cuda_available = check_cuda_availability()
         is_hip_available = check_hip_availability()
-        is_npuir_available = shutil.switch('bishengir-compile')
+        is_npuir_available = shutil.which('bishengir-compile')
 
         # Determine the target based on availability
         if is_cuda_available:

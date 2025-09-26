@@ -26,7 +26,6 @@ public:
 
   static const Op &Get();
 
-private:
   Array<PrimExpr> args_;
 
   Buffer src, dst;
@@ -52,7 +51,7 @@ NPUIR_BINARY_OP_CLASS(Div)
 NPUIR_BINARY_OP_CLASS(Max)
 NPUIR_BINARY_OP_CLASS(Min)
 
-#define NPUIR_UNARY_OP_CLASS(OPNAME)                                    
+#define NPUIR_UNARY_OP_CLASS(OPNAME)                                    \
   class Npuir##OPNAME : public Operator {                               \
   public:                                                               \
     Npuir##OPNAME(Array<PrimExpr> args, BufferMap vmap);                \
